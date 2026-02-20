@@ -1,154 +1,114 @@
-# WXT + React + Shadcn Starter
+# Browser Agent Extension
 
-WXT、React、Shadcn UIを組み合わせたブラウザ拡張機能の開発テンプレートです。モダンな技術スタックで、Chrome/Firefox対応の拡張機能を素早く開発できます。
+ChromeとFirefoxに対応したAIエージェント拡張機能です。WXT、React 19、Shadcn UI、そしてLangGraphを活用し、ブラウザ上で動作する高度なAIアシスタントを提供します。
 
 ## 特徴
 
-- 🚀 **WXT**: Next Generation Web Extension Framework
-- ⚛️ **React 19**: 最新のReactによるコンポーネント開発
-- 🎨 **Shadcn UI**: 美しく再利用可能なUIコンポーネント
-- 🎯 **TypeScript**: 型安全な開発環境
-- 💨 **Tailwind CSS 4.x**: ユーティリティファーストのスタイリング
-- 🔥 **Hot Reload**: 開発時の高速リロード
-- 🛠️ **コード品質ツール**: Prettier、Husky、lint-staged
+- 🤖 **AIエージェント搭載**: LangChain.js と LangGraph.js を採用した自律型エージェント。
+- 🌐 **ブラウザ操作**: 新しいタブを開いたり、アクティブなタブの情報を読み取ることが可能。
+- 🔌 **MCP (Model Context Protocol) 対応**: 外部のMCPサーバーと接続し、エージェントの機能を拡張できます。
+- 💾 **永続的な記憶**: Chrome Storageを利用して会話履歴やエージェントの状態を保存。
+- ⚛️ **モダンなUI**: React 19、Tailwind CSS 4、Shadcn UIによる美しく使いやすいインターフェース。
+- 🚀 **クロスブラウザ**: Chrome (MV3) と Firefox (MV3) の両方に対応。
+
+## アーキテクチャ
+
+この拡張機能は以下の主要コンポーネントで構成されています。
+
+### Background Script (`entrypoints/background.ts`)
+
+エージェントの頭脳となる部分です。LangGraphエージェントをホストし、ポップアップからのメッセージを処理します。エージェントの状態管理やツール実行（ブラウザ操作、MCPサーバー通信など）を担当します。
+
+### Popup (`entrypoints/popup/`)
+
+ユーザーインターフェースです。Reactで構築され、ユーザーとのチャット機能を提供します。Background Scriptと通信してAIからの応答を表示します。
+
+### Storage
+
+`chrome.storage.local` を使用して、以下の情報を管理します。
+
+- APIキー、ベースURL、モデル名などの設定
+- 会話履歴（スレッド）
+- 前回のセッション状態
 
 ## クイックスタート
+
+### 前提条件
+
+- Node.js (バージョン20以上推奨)
+- pnpm
 
 ### インストール
 
 ```bash
-git clone https://github.com/roamer7038/wxt-react-shadcn-starter.git
-cd wxt-react-shadcn-starter
+git clone https://github.com/roamer7038/browser-agent-extension.git
+cd browser-agent-extension
 pnpm install
 ```
 
 ### 開発
 
-開発サーバーを起動すると、コードの変更が自動的にブラウザに反映されます。
+開発サーバーを起動すると、コードの変更が自動的にリロードされます。
 
-**Chrome向け開発:**
+**Chromeでの開発:**
 
 ```bash
 pnpm dev
 ```
 
-**Firefox向け開発:**
+**Firefoxでの開発:**
 
 ```bash
 pnpm dev:firefox
 ```
 
-開発サーバー起動後、`.output/chrome-mv3`（または`.output/firefox-mv3`）ディレクトリが生成されます。
+コマンド実行後、`.output/chrome-mv3` (または `.output/firefox-mv3`) ディレクトリが生成されます。これをブラウザに読み込ませてください。
 
-### ブラウザへの読み込み
+#### ブラウザへの読み込み方法
 
-**Chrome:**
+- **Chrome**: `chrome://extensions/` を開き、デベロッパーモードをオンにして「パッケージ化されていない拡張機能を読み込む」から `.output/chrome-mv3` を選択します。
+- **Firefox**: `about:debugging#/runtime/this-firefox` を開き、「一時的なアドオンを読み込む」から `.output/firefox-mv3/manifest.json` を選択します。
 
-1. `chrome://extensions/` を開く
-2. 「デベロッパーモード」を有効にする
-3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-4. `.output/chrome-mv3` ディレクトリを選択
+### 設定
 
-**Firefox:**
+拡張機能をインストール後、アイコンをクリックしてポップアップを開き、設定画面（歯車アイコン）から以下を入力してください。
 
-1. `about:debugging#/runtime/this-firefox` を開く
-2. 「一時的なアドオンを読み込む」をクリック
-3. `.output/firefox-mv3/manifest.json` を選択
+1.  **API Key**: OpenAI互換のAPIキー
+2.  **Base URL** (任意): カスタムエンドポイントを使用する場合
+3.  **Model Name** (任意): 使用するモデル名 (例: `gpt-4o`, `claude-3-5-sonnet` 等)
 
-### ビルド
+## ビルド
 
-本番用のビルドを作成します。
-
-**Chrome向けビルド:**
+本番環境用に最適化されたビルドを作成します。
 
 ```bash
-pnpm build
+pnpm build          # Chrome用
+pnpm build:firefox  # Firefox用
 ```
 
-**Firefox向けビルド:**
+## パッケージング
 
-```bash
-pnpm build:firefox
-```
-
-ビルド成果物は `.output/chrome-mv3` または `.output/firefox-mv3` ディレクトリに出力されます。
-
-### 配布用ZIPの作成
-
-ストアへの提出用にZIPファイルを作成します。
+ストア提出用のZIPファイルを作成します。
 
 ```bash
 pnpm zip          # Chrome用
 pnpm zip:firefox  # Firefox用
 ```
 
-ZIPファイルは `.output` ディレクトリに生成されます。
-
-## 利用可能なコマンド
-
-| コマンド             | 説明                         |
-| -------------------- | ---------------------------- |
-| `pnpm dev`           | Chrome向け開発サーバー起動   |
-| `pnpm dev:firefox`   | Firefox向け開発サーバー起動  |
-| `pnpm build`         | Chrome向け本番ビルド         |
-| `pnpm build:firefox` | Firefox向け本番ビルド        |
-| `pnpm zip`           | Chrome向けZIP作成            |
-| `pnpm zip:firefox`   | Firefox向けZIP作成           |
-| `pnpm compile`       | TypeScriptの型チェック       |
-| `pnpm format`        | Prettierでコード整形         |
-| `pnpm format:check`  | コード整形のチェック         |
-| `pnpm clean`         | `.output` ディレクトリを削除 |
-
-## Shadcn UIコンポーネントの追加
-
-プロジェクトにShadcn UIコンポーネントを追加できます。
-
-```bash
-# TUIでコンポーネントを選択して追加
-pnpm dlx shadcn@latest add
-
-# 引数でコンポーネントを指定
-pnpm dlx shadcn@latest add button
-pnpm dlx shadcn@latest add card
-pnpm dlx shadcn@latest add dialog
-```
-
-追加されたコンポーネントは `components/ui/` ディレクトリに配置されます。
-
-### 使用例
-
-```tsx
-import { Button } from '@/components/ui/button';
-
-function App() {
-  return (
-    <Button variant='default' size='lg'>
-      Click me
-    </Button>
-  );
-}
-```
-
 ## 技術スタック
 
-| カテゴリ          | 技術         | バージョン |
-| ----------------- | ------------ | ---------- |
-| Framework         | WXT          | ^0.20.17   |
-| UI Library        | React        | ^19.2.4    |
-| Component Library | Shadcn UI    | ^3.8.5     |
-| Styling           | Tailwind CSS | ^4.2.0     |
-| Language          | TypeScript   | ^5.9.3     |
-| Build Tool        | Vite         | ^7.3.1     |
-| Code Formatter    | Prettier     | ^3.8.1     |
-| Git Hooks         | Husky        | ^9.1.7     |
-
-## 参考リンク
-
-- [WXT Documentation](https://wxt.dev/) - WXTの公式ドキュメント（プロジェクト構造、設定、カスタマイズ方法など）
-- [Shadcn UI](https://ui.shadcn.com/) - コンポーネントのドキュメントと使用例
-- [React Documentation](https://react.dev/) - Reactの公式ドキュメント
-- [Tailwind CSS](https://tailwindcss.com/) - Tailwind CSSのドキュメント
+| カテゴリ            | 技術             | バージョン |
+| ------------------- | ---------------- | ---------- |
+| Extension Framework | **WXT**          | ^0.20.17   |
+| UI Framework        | **React**        | ^19.2.4    |
+| UI Components       | **Shadcn UI**    | ^3.8.5     |
+| Styling             | **Tailwind CSS** | ^4.2.0     |
+| AI / LLM            | **LangChain.js** | ^1.2.25    |
+| Agent Framework     | **LangGraph.js** | ^1.1.5     |
+| Protocol            | **MCP Client**   | ^1.1.3     |
+| Build Tool          | **Vite**         | ^7.3.1     |
+| Language            | **TypeScript**   | ^5.9.3     |
 
 ## ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE](LICENSE)ファイルを参照してください。
+MIT License
