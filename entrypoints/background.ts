@@ -55,7 +55,14 @@ export default defineBackground(() => {
           // Retrieve screenshot data URL if captured during this turn (stored by browser_screenshot tool)
           const stored = await chrome.storage.local.get('lastScreenshotDataUrl');
           const screenshotDataUrl = stored.lastScreenshotDataUrl ?? null;
-          if (screenshotDataUrl) await chrome.storage.local.remove('lastScreenshotDataUrl');
+          if (screenshotDataUrl) {
+            // スレッドIDひもづきで永続化（履歴復元のため）
+            const screenshotKey = `screenshots_${config.configurable.thread_id}`;
+            const existingData = await chrome.storage.local.get(screenshotKey);
+            const existing: string[] = (existingData as Record<string, string[]>)[screenshotKey] ?? [];
+            await chrome.storage.local.set({ [screenshotKey]: [...existing, screenshotDataUrl] });
+            await chrome.storage.local.remove('lastScreenshotDataUrl');
+          }
 
           sendResponse({
             response: lastMessage.content,
@@ -102,7 +109,11 @@ export default defineBackground(() => {
               id: m.id,
               name: m.name
             }));
-            sendResponse({ messages });
+            // スレッドに紐づくスクリーンショットも取得
+            const screenshotKey = `screenshots_${threadId}`;
+            const screenshotData = await chrome.storage.local.get(screenshotKey);
+            const screenshots: string[] = (screenshotData as Record<string, string[]>)[screenshotKey] ?? [];
+            sendResponse({ messages, screenshots });
           } catch (error: any) {
             console.error('Failed to get history:', error);
             sendResponse({ error: error.message });
@@ -123,6 +134,8 @@ export default defineBackground(() => {
         if (data.lastActiveThreadId === threadId) {
           await chrome.storage.local.remove('lastActiveThreadId');
         }
+        // スレッドに紐づくスクリーンショットも削除
+        await chrome.storage.local.remove(`screenshots_${threadId}`);
         sendResponse({ success: true });
       }
     })();

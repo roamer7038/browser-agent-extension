@@ -22,29 +22,37 @@ export function useAgent() {
         })
         .then((response) => {
           if (response.messages) {
-            console.log('Raw history messages:', response.messages);
-            // Verify format of messages from LangGraph state
-            const formattedMessages = response.messages
-              .map((m: any) => {
-                // Map LangChain types to UI roles
-                let role = 'user';
-                if (m.type === 'ai') role = 'assistant';
-                else if (m.type === 'human') role = 'user';
-                else if (m.type === 'tool') role = 'tool';
+            const formattedMessages: Message[] = response.messages
+              .map((m: any): Message | null => {
+                // type が human/ai 以外（tool, system など）は UI に表示しない
+                const msgType: string =
+                  (typeof m.getType === 'function' ? m.getType() : m.type) ||
+                  (m.id?.includes('AI') ? 'ai' : m.id?.includes('Human') ? 'human' : null);
 
-                // Fallback based on ID if type is missing (handled in background, but just in case)
-                if (!m.type && m.id) {
-                  if (m.id.includes('AI')) role = 'assistant';
+                if (msgType === 'human') {
+                  const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+                  return { role: 'user', content, type: 'text' };
                 }
-
-                return {
-                  role,
-                  content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-                };
+                if (msgType === 'ai') {
+                  const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+                  // content が空のAIメッセージ（ツール呼び出し中間ステップ）は除外
+                  if (!content.trim()) return null;
+                  return { role: 'assistant', content, type: 'text' };
+                }
+                // tool / system / function など → 表示しない
+                return null;
               })
-              .filter((m: any) => m.role === 'user' || m.role === 'assistant');
+              .filter((m: Message | null): m is Message => m !== null);
 
-            setMessages(formattedMessages);
+            // スクリーンショットを末尾に追加（LLMコンテキスト外のUI専用データ）
+            const screenshots: string[] = response.screenshots ?? [];
+            const screenshotMessages: Message[] = screenshots.map((url) => ({
+              role: 'assistant',
+              content: url,
+              type: 'image'
+            }));
+
+            setMessages([...formattedMessages, ...screenshotMessages]);
           }
         });
     } else {
