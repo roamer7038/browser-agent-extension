@@ -2,6 +2,9 @@ import { createLangGraphAgent, AgentConfig } from '@/lib/agent/graph';
 import { v4 as uuidv4 } from 'uuid';
 
 export default defineBackground(() => {
+  // アイコンクリック時にサイドパネルを自動で開く
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
   let agentExecutor: any = null;
 
   // Initialize agent when config changes or on startup if config exists
@@ -25,7 +28,7 @@ export default defineBackground(() => {
     }
   });
 
-  // Handle messages from Popup
+  // Handle messages from Side Panel
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     (async () => {
       if (!agentExecutor) {

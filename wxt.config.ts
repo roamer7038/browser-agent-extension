@@ -6,7 +6,8 @@ import path from 'path';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    permissions: ['storage', 'tabs', 'activeTab', 'scripting', 'downloads']
+    permissions: ['storage', 'tabs', 'activeTab', 'scripting', 'downloads', 'sidePanel'],
+    action: {}
   },
   vite: () => ({
     plugins: [
