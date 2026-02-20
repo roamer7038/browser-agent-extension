@@ -1,0 +1,10 @@
+# .prettierignore
+node_modules
+dist
+.pnpm-store
+*.log
+pnpm-lock.yaml
+.next
+coverage
+.vscode
+.idea
