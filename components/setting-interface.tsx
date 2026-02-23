@@ -7,6 +7,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { BROWSER_TOOL_META, TOOL_SETTINGS_STORAGE_KEY, getAllToolNames } from '@/lib/agent/tools/tool-meta';
+import { SidePanelHeader } from '@/components/side-panel-header';
+import { SidePanelLayout } from '@/components/side-panel-layout';
 
 const CATEGORY_LABELS: Record<string, string> = {
   navigation: 'ナビゲーション',
@@ -63,15 +65,17 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
   const categories = Array.from(new Set(BROWSER_TOOL_META.map((t) => t.category)));
 
   return (
-    <div className='flex flex-col h-full bg-background text-foreground overflow-y-auto'>
-      <div className='flex items-center gap-2 p-4 border-b'>
-        <Button className='h-8 w-8' size='icon' variant='ghost' onClick={onBack}>
-          <ArrowLeft className='w-4 h-4' />
-        </Button>
-        <h2 className='text-xl font-bold'>Settings</h2>
-      </div>
+    <SidePanelLayout>
+      <SidePanelHeader
+        title='Settings'
+        leftActions={
+          <Button className='h-8 w-8' size='icon' variant='ghost' onClick={onBack} title='Back'>
+            <ArrowLeft className='w-4 h-4' />
+          </Button>
+        }
+      />
 
-      <div className='flex flex-col gap-4 p-4'>
+      <div className='flex-1 flex flex-col gap-4 p-4 overflow-y-auto'>
         {/* LLM Settings */}
         <Card>
           <CardHeader>
@@ -160,6 +164,6 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
           </CardFooter>
         </Card>
       </div>
-    </div>
+    </SidePanelLayout>
   );
 }

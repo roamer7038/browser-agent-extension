@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Settings, Send, Loader2, User, Bot, History, Plus, ChevronsUp, ChevronsDown } from 'lucide-react';
 import clsx from 'clsx';
+import { SidePanelHeader } from '@/components/side-panel-header';
+import { SidePanelLayout } from '@/components/side-panel-layout';
 
 export function ChatInterface({ onSettings, onHistory }: { onSettings: () => void; onHistory: () => void }) {
   const { messages, isLoading, sendMessage, startNewThread } = useAgent();
@@ -53,22 +55,25 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
   };
 
   return (
-    <div className='flex flex-col h-full bg-background text-foreground overflow-hidden'>
-      {/* Header（固定） */}
-      <div className='flex items-center justify-between px-4 border-b h-14 shrink-0 bg-background z-10'>
-        <div className='flex gap-1'>
-          <Button variant='ghost' size='icon' onClick={onHistory} title='History'>
-            <History className='w-5 h-5' />
+    <SidePanelLayout>
+      <SidePanelHeader
+        title='Browser Agent'
+        leftActions={
+          <>
+            <Button size='icon' variant='ghost' onClick={onHistory} title='History'>
+              <History className='w-4 h-4' />
+            </Button>
+            <Button size='icon' variant='ghost' onClick={startNewThread} title='New Chat'>
+              <Plus className='w-4 h-4' />
+            </Button>
+          </>
+        }
+        rightActions={
+          <Button size='icon' variant='ghost' onClick={onSettings} title='Settings'>
+            <Settings className='w-4 h-4' />
           </Button>
-          <Button variant='ghost' size='icon' onClick={startNewThread} title='New Chat'>
-            <Plus className='w-5 h-5' />
-          </Button>
-        </div>
-        <h1 className='text-base font-bold truncate text-center flex-1'>Browser Agent</h1>
-        <Button variant='ghost' size='icon' onClick={onSettings} title='Settings'>
-          <Settings className='w-5 h-5' />
-        </Button>
-      </div>
+        }
+      />
 
       {/* Messages（スクロール可能エリア） */}
       <div ref={scrollContainerRef} className='flex-1 overflow-y-auto px-4 py-4' onScroll={handleScroll}>
@@ -179,6 +184,6 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
           </Button>
         </div>
       </div>
-    </div>
+    </SidePanelLayout>
   );
 }

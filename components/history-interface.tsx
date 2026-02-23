@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Trash2, MessageSquare } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
+import { SidePanelHeader } from '@/components/side-panel-header';
+import { SidePanelLayout } from '@/components/side-panel-layout';
 
 interface Thread {
   id: string;
@@ -48,13 +49,15 @@ export function HistoryInterface({
   };
 
   return (
-    <div className='flex flex-col h-full bg-background text-foreground'>
-      <div className='flex items-center gap-2 p-4 border-b'>
-        <Button variant='ghost' size='icon' onClick={onBack} className='h-8 w-8'>
-          <ArrowLeft className='w-4 h-4' />
-        </Button>
-        <h2 className='text-xl font-bold'>History</h2>
-      </div>
+    <SidePanelLayout>
+      <SidePanelHeader
+        title='History'
+        leftActions={
+          <Button className='h-8 w-8' size='icon' variant='ghost' onClick={onBack} title='Back'>
+            <ArrowLeft className='w-4 h-4' />
+          </Button>
+        }
+      />
 
       <ScrollArea className='flex-1 p-4'>
         {isLoading ? (
@@ -93,6 +96,6 @@ export function HistoryInterface({
           </div>
         )}
       </ScrollArea>
-    </div>
+    </SidePanelLayout>
   );
 }

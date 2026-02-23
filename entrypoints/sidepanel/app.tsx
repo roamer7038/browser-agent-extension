@@ -12,7 +12,7 @@ function App() {
   };
 
   return (
-    <div className='w-full h-screen bg-background'>
+    <div className='w-full h-screen bg-background overflow-hidden'>
       {view === 'chat' ? (
         <ChatInterface onSettings={() => setView('settings')} onHistory={() => setView('history')} />
       ) : view === 'settings' ? (
