@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Trash2, MessageSquare } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { SidePanelHeader } from '@/components/side-panel-header';
 import { SidePanelLayout } from '@/components/side-panel-layout';
@@ -59,7 +58,7 @@ export function HistoryInterface({
         }
       />
 
-      <ScrollArea className='flex-1 p-4'>
+      <div className='flex-1 overflow-y-auto p-4'>
         {isLoading ? (
           <div className='flex justify-center p-8'>
             <Loader2 className='w-6 h-6 animate-spin text-muted-foreground' />
@@ -95,7 +94,7 @@ export function HistoryInterface({
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
     </SidePanelLayout>
   );
 }

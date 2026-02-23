@@ -169,17 +169,17 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
       </div>
 
       {/* Input エリア（固定） */}
-      <div className='shrink-0 px-4 py-3 border-t bg-background z-10'>
+      <div className='shrink-0 px-3 py-2 border-t bg-background z-10'>
         <div className='flex gap-2 items-end'>
           <Textarea
             ref={inputRef}
-            className='flex-1 min-h-[40px] max-h-[120px] resize-none'
+            className='flex-1 min-h-[36px] max-h-[120px] resize-none text-sm'
             placeholder='Type a message...'
             onKeyDown={handleKeyDown}
             disabled={isLoading}
             rows={1}
           />
-          <Button size='icon' onClick={handleSend} disabled={isLoading} className='h-9 w-9 mb-1'>
+          <Button size='icon' onClick={handleSend} disabled={isLoading} className='h-8 w-8'>
             <Send className='w-4 h-4' />
           </Button>
         </div>
