@@ -25,8 +25,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './'),
-        'node:async_hooks': path.resolve(__dirname, './lib/polyfills/async_hooks.ts'),
-        async_hooks: path.resolve(__dirname, './lib/polyfills/async_hooks.ts')
+        'node:async_hooks': path.resolve(__dirname, './lib/polyfills/async-hooks.ts'),
+        async_hooks: path.resolve(__dirname, './lib/polyfills/async-hooks.ts')
       }
     }
   })

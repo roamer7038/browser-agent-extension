@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ChatInterface } from '@/components/ChatInterface';
-import { SettingsInterface } from '@/components/SettingsInterface';
-import { HistoryInterface } from '@/components/HistoryInterface';
+import { ChatInterface } from '@/components/chat-interface';
+import { SettingsInterface } from '@/components/setting-interface';
+import { HistoryInterface } from '@/components/history-interface';
 
 function App() {
   const [view, setView] = useState<'chat' | 'settings' | 'history'>('chat');
