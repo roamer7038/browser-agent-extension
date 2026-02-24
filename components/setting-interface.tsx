@@ -252,7 +252,7 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
           </CardHeader>
           <CardContent className='space-y-4'>
             <div className='space-y-2'>
-              <Label htmlFor='baseUrl'>Base URL (Optional)</Label>
+              <Label htmlFor='baseUrl'>Base URL</Label>
               <Input
                 id='baseUrl'
                 placeholder='https://api.openai.com/v1'
@@ -275,7 +275,7 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
               />
             </div>
             <div className='space-y-2'>
-              <Label htmlFor='modelName'>Model Name (Optional)</Label>
+              <Label htmlFor='modelName'>Model Name</Label>
               <Input
                 id='modelName'
                 placeholder='gpt-5'
