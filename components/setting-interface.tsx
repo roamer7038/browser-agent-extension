@@ -102,6 +102,56 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
+  const fetchModels = useCallback(async (forceRefresh = false) => {
+    setModelsLoading(true);
+    try {
+      // Get saved settings
+      const result = await chrome.storage.local.get(['apiKey', 'baseUrl']);
+      const apiKey = result.apiKey as string | undefined;
+      const baseUrl = result.baseUrl as string | undefined;
+
+      if (!apiKey) {
+        toast.error('API Keyが設定されていません。先にAPI Keyを保存してください。');
+        setAvailableModels([]);
+        return;
+      }
+
+      // Check cache first (unless forceRefresh)
+      if (!forceRefresh) {
+        const cached = await getCachedModels(apiKey, baseUrl || '');
+        if (cached) {
+          setAvailableModels(cached);
+          setModelsLoading(false);
+          return;
+        }
+      }
+
+      // Fetch from API via background script
+      const response = await chrome.runtime.sendMessage({ type: 'fetch_models' });
+
+      if (response.error) {
+        toast.error(`モデルリストの取得に失敗しました: ${response.error}`);
+        setAvailableModels([]);
+        return;
+      }
+
+      // Save to cache
+      await saveCacheWithMeta(response.models, apiKey, baseUrl || '');
+      setAvailableModels(response.models);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`モデルリストの取得に失敗しました: ${message}`);
+      setAvailableModels([]);
+    } finally {
+      setModelsLoading(false);
+    }
+  }, []);
+
+  const handleRefreshModels = useCallback(async () => {
+    await clearModelCache();
+    await fetchModels(true);
+  }, [fetchModels]);
+
   // Load settings
   useEffect(() => {
     chrome.storage.local.get(['apiKey', 'baseUrl', 'modelName', TOOL_SETTINGS_STORAGE_KEY]).then((data) => {
@@ -114,6 +164,11 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
     });
     loadMcpServers();
   }, []);
+
+  useEffect(() => {
+    // Load models when component mounts
+    fetchModels();
+  }, [fetchModels]);
 
   const loadMcpServers = useCallback(async () => {
     const servers = await getMcpServers();
