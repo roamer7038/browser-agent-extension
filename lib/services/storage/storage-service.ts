@@ -3,6 +3,7 @@
 import { STORAGE_KEYS } from './storage-keys';
 import type { LLMConfig } from '@/lib/types/agent';
 import type { McpServerConfig } from '@/lib/types/settings';
+import { CryptoService } from '../crypto/crypto-service';
 
 export class StorageError extends Error {
   constructor(
@@ -53,8 +54,14 @@ export class StorageService {
         STORAGE_KEYS.MODEL_NAME
       ]);
 
+      // APIキーを復号化
+      let apiKey = (data[STORAGE_KEYS.API_KEY] as string) || '';
+      if (apiKey) {
+        apiKey = await CryptoService.decrypt(apiKey);
+      }
+
       return {
-        apiKey: (data[STORAGE_KEYS.API_KEY] as string) || '',
+        apiKey,
         baseUrl: (data[STORAGE_KEYS.BASE_URL] as string) || undefined,
         modelName: (data[STORAGE_KEYS.MODEL_NAME] as string) || undefined
       };
@@ -68,7 +75,8 @@ export class StorageService {
     try {
       const updates: Record<string, string | undefined> = {};
       if ('apiKey' in config && config.apiKey !== undefined) {
-        updates[STORAGE_KEYS.API_KEY] = config.apiKey;
+        // APIキーを暗号化
+        updates[STORAGE_KEYS.API_KEY] = await CryptoService.encrypt(config.apiKey);
       }
       if ('baseUrl' in config) {
         updates[STORAGE_KEYS.BASE_URL] = config.baseUrl ?? '';
@@ -115,7 +123,11 @@ export class StorageService {
   static async getMcpServers(): Promise<McpServerConfig[]> {
     try {
       const servers = await this.get<McpServerConfig[]>(STORAGE_KEYS.MCP_SERVERS);
-      return servers || [];
+      if (!servers || servers.length === 0) {
+        return [];
+      }
+      // ヘッダを復号化
+      return this.decryptMcpHeaders(servers);
     } catch (error) {
       console.error('[StorageService] Failed to get MCP servers:', error);
       throw new StorageError('Failed to get MCP servers', error);
@@ -124,7 +136,9 @@ export class StorageService {
 
   static async saveMcpServers(servers: McpServerConfig[]): Promise<void> {
     try {
-      await this.set(STORAGE_KEYS.MCP_SERVERS, servers);
+      // ヘッダを暗号化
+      const serversWithEncryptedHeaders = await this.encryptMcpHeaders(servers);
+      await this.set(STORAGE_KEYS.MCP_SERVERS, serversWithEncryptedHeaders);
     } catch (error) {
       console.error('[StorageService] Failed to save MCP servers:', error);
       throw new StorageError('Failed to save MCP servers', error);
@@ -212,5 +226,36 @@ export class StorageService {
       console.error('[StorageService] Failed to remove last screenshot data URL:', error);
       throw new StorageError('Failed to remove last screenshot data URL', error);
     }
+  }
+
+  // Private helper methods for MCP header encryption
+  private static async encryptMcpHeaders(servers: McpServerConfig[]): Promise<McpServerConfig[]> {
+    return Promise.all(
+      servers.map(async (server) => {
+        if (server.headers) {
+          const encryptedHeaders: Record<string, string> = {};
+          for (const [key, value] of Object.entries(server.headers)) {
+            encryptedHeaders[key] = await CryptoService.encrypt(value);
+          }
+          return { ...server, headers: encryptedHeaders };
+        }
+        return server;
+      })
+    );
+  }
+
+  private static async decryptMcpHeaders(servers: McpServerConfig[]): Promise<McpServerConfig[]> {
+    return Promise.all(
+      servers.map(async (server) => {
+        if (server.headers) {
+          const decryptedHeaders: Record<string, string> = {};
+          for (const [key, value] of Object.entries(server.headers)) {
+            decryptedHeaders[key] = await CryptoService.decrypt(value);
+          }
+          return { ...server, headers: decryptedHeaders };
+        }
+        return server;
+      })
+    );
   }
 }
