@@ -60,7 +60,7 @@ export class CryptoService {
   static async encrypt(plaintext: string): Promise<string> {
     try {
       if (!this.encryptionKey) {
-        throw new Error('Encryption service not initialized');
+        await this.initialize();
       }
 
       // ランダムなIVを生成
@@ -75,7 +75,7 @@ export class CryptoService {
           name: this.ALGORITHM,
           iv: iv
         },
-        this.encryptionKey,
+        this.encryptionKey!,
         encodedText
       );
 
@@ -108,7 +108,7 @@ export class CryptoService {
       }
 
       if (!this.encryptionKey) {
-        throw new Error('Encryption service not initialized');
+        await this.initialize();
       }
 
       // プレフィックスを除去
@@ -127,7 +127,7 @@ export class CryptoService {
           name: this.ALGORITHM,
           iv: iv
         },
-        this.encryptionKey,
+        this.encryptionKey!,
         encryptedData
       );
 
