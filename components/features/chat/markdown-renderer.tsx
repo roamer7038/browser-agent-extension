@@ -24,6 +24,7 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
     });
 
     let isMounted = true;
+    let fallbackTimer: ReturnType<typeof setTimeout>;
 
     // Check if the chart is empty or incomplete during streaming
     if (!chart || chart.trim() === '') return;
@@ -39,15 +40,20 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
         })
         .catch((e) => {
           console.error('Mermaid rendering error:', e);
-          if (isMounted) setError(true);
+          fallbackTimer = setTimeout(() => {
+            if (isMounted) setError(true);
+          }, 800);
         });
     } catch (e) {
       console.error('Mermaid rendering error:', e);
-      if (isMounted) setError(true);
+      fallbackTimer = setTimeout(() => {
+        if (isMounted) setError(true);
+      }, 800);
     }
 
     return () => {
       isMounted = false;
+      clearTimeout(fallbackTimer);
     };
   }, [chart, id]);
 
@@ -70,31 +76,39 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
 MermaidDiagram.displayName = 'MermaidDiagram';
 
 const markdownComponents: Components = {
+  pre({ children, ...props }) {
+    return (
+      <pre className='!p-0 !m-0 !bg-transparent !border-0' {...props}>
+        {children}
+      </pre>
+    );
+  },
   code(props) {
     const { children, className, node, ref, ...rest } = props;
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
-    const isInline = !match;
+    const content = String(children).replace(/\n$/, '');
+    const isBlock = Boolean(match || content.includes('\n'));
 
-    if (!isInline && language === 'mermaid') {
-      return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />;
+    if (isBlock && language === 'mermaid') {
+      return <MermaidDiagram chart={content} />;
     }
 
-    return !isInline && match ? (
+    return isBlock ? (
       <SyntaxHighlighter
         {...(rest as any)}
         style={vscDarkPlus as any}
-        language={language}
+        language={language || 'text'}
         PreTag='div'
         customStyle={{
           margin: 0,
           padding: '1rem',
-          borderRadius: 0,
+          borderRadius: '0.375rem',
           fontSize: '0.85rem',
-          backgroundColor: 'transparent'
+          backgroundColor: '#1e1e1e'
         }}
       >
-        {String(children).replace(/\n$/, '')}
+        {content}
       </SyntaxHighlighter>
     ) : (
       <code
