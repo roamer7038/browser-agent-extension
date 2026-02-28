@@ -99,7 +99,7 @@ export function McpToolIntegration({
                         </div>
                       ) : serverTools && serverTools.length > 0 ? (
                         <Accordion collapsible type='single'>
-                          <AccordionItem className='border rounded-md' value={`mcp-tools-${server.id}`}>
+                          <AccordionItem className='border rounded-md last:border-b' value={`mcp-tools-${server.id}`}>
                             <AccordionTrigger className='px-3 py-2 text-xs text-muted-foreground hover:no-underline'>
                               ツール一覧（{serverTools.length}個）
                             </AccordionTrigger>
