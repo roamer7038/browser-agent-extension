@@ -49,15 +49,16 @@ export function LlmProviderSection({
   };
 
   const onSave = async () => {
-    const isBaseUrlRequired = formData.providerType === 'openai-compatible';
-    if (!formData.name.trim() || !formData.apiKey.trim()) return;
+    const isBaseUrlRequired = formData.providerType === 'openai-compatible' || formData.providerType === 'ollama';
+    if (!formData.name.trim()) return;
+    if (formData.providerType !== 'ollama' && !formData.apiKey.trim()) return;
     if (isBaseUrlRequired && !formData.baseUrl.trim()) return;
 
     const updates: Omit<LlmProviderConfig, 'id'> = {
       name: formData.name.trim(),
       providerType: formData.providerType,
       baseUrl: isBaseUrlRequired ? formData.baseUrl.trim() : undefined,
-      apiKey: formData.apiKey.trim()
+      apiKey: formData.apiKey.trim() || 'ollama'
     };
 
     if (editingProvider) {
@@ -69,8 +70,13 @@ export function LlmProviderSection({
   };
 
   const isFormValid = () => {
-    if (!formData.name.trim() || !formData.apiKey.trim()) return false;
-    if (formData.providerType === 'openai-compatible' && !formData.baseUrl.trim()) return false;
+    if (!formData.name.trim()) return false;
+    if (formData.providerType !== 'ollama' && !formData.apiKey.trim()) return false;
+    if (
+      (formData.providerType === 'openai-compatible' || formData.providerType === 'ollama') &&
+      !formData.baseUrl.trim()
+    )
+      return false;
     return true;
   };
 
@@ -104,7 +110,11 @@ export function LlmProviderSection({
                 <div className='space-y-1 min-w-0 flex-1 pr-4'>
                   <p className='text-sm font-medium truncate'>{provider.name}</p>
                   <p className='text-xs text-muted-foreground truncate'>
-                    {provider.providerType === 'openai' ? 'OpenAI' : 'OpenAI互換'}
+                    {provider.providerType === 'openai'
+                      ? 'OpenAI'
+                      : provider.providerType === 'ollama'
+                        ? 'Ollama'
+                        : 'OpenAI互換'}
                     {provider.baseUrl ? ` - ${provider.baseUrl}` : ''}
                   </p>
                   <p className='text-[10px] text-muted-foreground/70 font-mono'>
@@ -157,32 +167,37 @@ export function LlmProviderSection({
                 <SelectContent>
                   <SelectItem value='openai'>OpenAI</SelectItem>
                   <SelectItem value='openai-compatible'>OpenAI互換</SelectItem>
+                  <SelectItem value='ollama'>Ollama</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {formData.providerType === 'openai-compatible' && (
+            {(formData.providerType === 'openai-compatible' || formData.providerType === 'ollama') && (
               <div className='space-y-2'>
                 <Label>
                   Base URL <span className='text-red-500'>*</span>
                 </Label>
                 <Input
-                  placeholder='https://openrouter.ai/api/v1'
+                  placeholder={
+                    formData.providerType === 'ollama' ? 'http://localhost:11434' : 'https://openrouter.ai/api/v1'
+                  }
                   value={formData.baseUrl}
                   onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
                 />
               </div>
             )}
-            <div className='space-y-2'>
-              <Label>
-                API Key <span className='text-red-500'>*</span>
-              </Label>
-              <Input
-                type='password'
-                placeholder='sk-...'
-                value={formData.apiKey}
-                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-              />
-            </div>
+            {formData.providerType !== 'ollama' && (
+              <div className='space-y-2'>
+                <Label>
+                  API Key <span className='text-red-500'>*</span>
+                </Label>
+                <Input
+                  type='password'
+                  placeholder='sk-...'
+                  value={formData.apiKey}
+                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setDialogOpen(false)}>

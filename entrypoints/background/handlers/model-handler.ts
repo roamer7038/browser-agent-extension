@@ -5,13 +5,31 @@ import type { FetchModelsResponse } from '@/lib/services/message/message-types';
 import type { LlmProviderConfig } from '@/lib/types/agent';
 
 export async function handleFetchModels(provider: LlmProviderConfig): Promise<FetchModelsResponse> {
-  if (!provider.apiKey) {
+  if (!provider.apiKey && provider.providerType !== 'ollama') {
     throw new Error('API Key is not configured for this provider');
   }
 
-  let baseUrl = provider.baseUrl || 'https://api.openai.com/v1';
+  let baseUrl =
+    provider.baseUrl || (provider.providerType === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1');
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
+  }
+
+  if (provider.providerType === 'ollama') {
+    const url = `${baseUrl}/api/tags`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Ollama API request failed: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (!data.models || !Array.isArray(data.models)) {
+      throw new Error('Invalid response format from Ollama API');
+    }
+    const models = data.models
+      .map((m: any) => m.name)
+      .filter((name: string) => typeof name === 'string')
+      .sort();
+    return { models };
   }
   const url = `${baseUrl}/models`;
 

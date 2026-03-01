@@ -28,7 +28,7 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
 
   // 1. Initialize LLM
   const model = LLMFactory.createModel({
-    provider: 'openai',
+    provider: config.providerType || 'openai',
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     modelName: config.modelName || 'gpt-5'

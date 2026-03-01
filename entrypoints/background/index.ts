@@ -24,13 +24,14 @@ export default defineBackground(() => {
 
     if (agentConfig?.providerId) {
       const provider = providers.find((p) => p.id === agentConfig.providerId);
-      if (provider?.apiKey) {
+      if (provider?.apiKey || provider?.providerType === 'ollama') {
         console.log('Initializing agent...');
         try {
           agentExecutor = await createLangGraphAgent({
             apiKey: provider.apiKey,
             baseUrl: provider.baseUrl,
-            modelName: agentConfig.modelName
+            modelName: agentConfig.modelName,
+            providerType: provider.providerType
           });
           console.log('Agent initialized.');
         } catch (error) {

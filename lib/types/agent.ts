@@ -17,7 +17,7 @@ export interface AgentConfig {
 export interface LlmProviderConfig {
   id: string; // e.g. "openai", "openrouter", "ollama", or a custom UUID
   name: string; // User-facing name
-  providerType: 'openai' | 'openai-compatible' | string;
+  providerType: 'openai' | 'openai-compatible' | 'ollama' | string;
   baseUrl?: string;
   apiKey: string;
 }
@@ -76,4 +76,5 @@ export interface GraphAgentConfig {
   apiKey: string;
   baseUrl?: string;
   modelName: string;
+  providerType?: string;
 }
