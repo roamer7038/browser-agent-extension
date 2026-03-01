@@ -17,8 +17,7 @@ export function getAgentMiddlewares(model: BaseLanguageModel, agentSettings: Age
       summarizationMiddleware({
         model,
         trigger: {
-          tokens: sumSettings.maxTokens || 4000,
-          messages: sumSettings.messages || 10
+          tokens: sumSettings.maxTokens || 100000
         }
       })
     );

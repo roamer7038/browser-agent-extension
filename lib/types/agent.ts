@@ -35,7 +35,6 @@ export interface AgentSettingsConfig {
   middlewareSettings?: {
     summarization?: {
       maxTokens?: number;
-      messages?: number;
     };
   };
 }

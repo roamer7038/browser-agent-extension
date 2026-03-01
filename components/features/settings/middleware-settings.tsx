@@ -59,10 +59,10 @@ export function MiddlewareSettings({
               </div>
 
               {middleware.name === 'SummarizationMiddleware' && isSummarizationEnabled && (
-                <div className='pl-2 border-l-2 bg-muted/30 p-3 rounded-md mt-2 flex gap-4'>
+                <div className='pl-2 border-1 bg-muted/30 p-3 rounded-md mt-2 flex gap-4'>
                   <div className='flex-1 space-y-1.5'>
                     <Label htmlFor='summarization-max-tokens' className='text-xs text-muted-foreground'>
-                      要約トリガー (最大トークン数)
+                      最大トークン数
                     </Label>
                     <Input
                       id='summarization-max-tokens'
@@ -78,29 +78,6 @@ export function MiddlewareSettings({
                           summarization: {
                             ...middlewareSettings?.summarization,
                             maxTokens: isNaN(val) ? undefined : val
-                          }
-                        });
-                      }}
-                    />
-                  </div>
-                  <div className='flex-1 space-y-1.5'>
-                    <Label htmlFor='summarization-messages' className='text-xs text-muted-foreground'>
-                      保持する最新メッセージ数
-                    </Label>
-                    <Input
-                      id='summarization-messages'
-                      type='number'
-                      min={1}
-                      step={1}
-                      placeholder='20'
-                      className='h-8 text-sm'
-                      value={middlewareSettings?.summarization?.messages || ''}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        onUpdateSettings({
-                          summarization: {
-                            ...middlewareSettings?.summarization,
-                            messages: isNaN(val) ? undefined : val
                           }
                         });
                       }}
