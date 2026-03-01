@@ -104,6 +104,13 @@ export function ModelSelector({
               onInputValueChange={(newVal) => {
                 setInputValue(newVal || '');
               }}
+              onOpenChange={(isOpen) => {
+                if (isOpen) {
+                  setInputValue('');
+                } else {
+                  setInputValue(modelName || '');
+                }
+              }}
               onValueChange={(val) => {
                 if (typeof val === 'string' && val.trim() !== '') {
                   onModelSelect(val);
