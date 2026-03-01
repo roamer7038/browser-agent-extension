@@ -23,7 +23,9 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
     toggleTool,
     toggleMcpServer,
     toggleMcpTool,
-    setSystemPrompt
+    setSystemPrompt,
+    toggleMiddleware,
+    updateMiddlewareSettings
   } = useAgentSettings();
   const mcpServerProps = useMcpServers();
 
@@ -94,6 +96,8 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
               toggleTool={toggleTool}
               toggleMcpServer={toggleMcpServer}
               toggleMcpTool={toggleMcpTool}
+              toggleMiddleware={toggleMiddleware}
+              updateMiddlewareSettings={updateMiddlewareSettings}
             />
           </div>
         );

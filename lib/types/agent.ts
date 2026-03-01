@@ -31,6 +31,13 @@ export interface AgentSettingsConfig {
   enabledMcpServers: string[];
   disabledMcpTools: string[];
   systemPrompt?: string;
+  enabledMiddlewares: string[];
+  middlewareSettings?: {
+    summarization?: {
+      maxTokens?: number;
+      messages?: number;
+    };
+  };
 }
 
 /** Default agent identifier used when no specific agent is specified. */

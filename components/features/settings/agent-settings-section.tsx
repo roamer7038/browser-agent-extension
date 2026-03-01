@@ -5,6 +5,7 @@ import { SystemPromptEditor } from './system-prompt-editor';
 import { ModelSelector } from './model-selector';
 import { ToolToggleList } from './tool-toggle-list';
 import { McpToolIntegration } from './mcp-tool-integration';
+import { MiddlewareSettings } from './middleware-settings';
 
 interface AgentSettingsSectionProps {
   agentConfig: AgentSettingsConfig;
@@ -15,6 +16,8 @@ interface AgentSettingsSectionProps {
   toggleTool: (toolName: string, enabled: boolean) => void;
   toggleMcpServer: (serverId: string, enabled: boolean) => void;
   toggleMcpTool: (toolName: string, enabled: boolean) => void;
+  toggleMiddleware: (middlewareName: string, enabled: boolean) => void;
+  updateMiddlewareSettings: (settings: NonNullable<AgentSettingsConfig['middlewareSettings']>) => void;
 }
 
 export function AgentSettingsSection({
@@ -25,7 +28,9 @@ export function AgentSettingsSection({
   setSystemPrompt,
   toggleTool,
   toggleMcpServer,
-  toggleMcpTool
+  toggleMcpTool,
+  toggleMiddleware,
+  updateMiddlewareSettings
 }: AgentSettingsSectionProps) {
   return (
     <div className='space-y-8'>
@@ -53,6 +58,13 @@ export function AgentSettingsSection({
         mcpServers={mcpServers}
         onToggleServer={toggleMcpServer}
         onToggleTool={toggleMcpTool}
+      />
+
+      <MiddlewareSettings
+        enabledMiddlewares={agentConfig.enabledMiddlewares || []}
+        middlewareSettings={agentConfig.middlewareSettings}
+        onToggle={toggleMiddleware}
+        onUpdateSettings={updateMiddlewareSettings}
       />
     </div>
   );

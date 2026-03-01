@@ -5,6 +5,7 @@ import { ChromeStorageCheckpointer } from '../checkpointer';
 import { createBrowserTools } from '../tools/browser/index';
 import { createMcpTools } from '../tools/mcp';
 import { LLMFactory } from '../llm';
+import { getAgentMiddlewares } from '../middlewares';
 import { getAllToolNames } from '../tools/tool-meta';
 import { DEFAULT_SYSTEM_PROMPT } from '../default-system-prompt';
 
@@ -60,11 +61,15 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
   // 5. Initialize Checkpointer
   const checkpointer = new ChromeStorageCheckpointer();
 
-  // 6. Create Agent
+  // 6. Initialize Middlewares
+  const middleware = getAgentMiddlewares(model, agentSettings);
+
+  // 7. Create Agent
   const systemPrompt = agentSettings?.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   return createAgent({
     model,
     tools,
+    middleware,
     checkpointer,
     ...(systemPrompt ? { systemPrompt } : {})
   });

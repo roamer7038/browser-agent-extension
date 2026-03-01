@@ -21,7 +21,9 @@ export function useAgentSettings(agentId?: string) {
     enabledTools: [],
     enabledMcpServers: [],
     disabledMcpTools: [],
-    systemPrompt: DEFAULT_SYSTEM_PROMPT
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    enabledMiddlewares: [],
+    middlewareSettings: {}
   });
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -40,7 +42,9 @@ export function useAgentSettings(agentId?: string) {
         enabledTools: defaultTools,
         enabledMcpServers: [],
         disabledMcpTools: [],
-        systemPrompt: DEFAULT_SYSTEM_PROMPT
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        enabledMiddlewares: [],
+        middlewareSettings: {}
       };
       setConfig(defaultConfig);
     }
@@ -109,6 +113,31 @@ export function useAgentSettings(agentId?: string) {
     updateConfig({ systemPrompt: prompt });
   };
 
+  const toggleMiddleware = (middlewareName: string, enabled: boolean): void => {
+    setConfig((prev) => {
+      const middlewareSet = new Set(prev.enabledMiddlewares || []);
+      if (enabled) {
+        middlewareSet.add(middlewareName);
+      } else {
+        middlewareSet.delete(middlewareName);
+      }
+      const newMiddlewares = Array.from(middlewareSet);
+      updateConfig({ enabledMiddlewares: newMiddlewares });
+      return prev;
+    });
+  };
+
+  const updateMiddlewareSettings = (settings: NonNullable<AgentSettingsConfig['middlewareSettings']>): void => {
+    setConfig((prev) => {
+      const newSettings = {
+        ...prev.middlewareSettings,
+        ...settings
+      };
+      updateConfig({ middlewareSettings: newSettings });
+      return prev;
+    });
+  };
+
   return {
     config,
     isLoaded,
@@ -117,6 +146,8 @@ export function useAgentSettings(agentId?: string) {
     toggleTool,
     toggleMcpServer,
     toggleMcpTool,
-    setSystemPrompt
+    setSystemPrompt,
+    toggleMiddleware,
+    updateMiddlewareSettings
   };
 }
