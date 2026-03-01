@@ -1,9 +1,16 @@
-import { summarizationMiddleware, todoListMiddleware } from 'langchain';
+import { summarizationMiddleware, todoListMiddleware, toolCallLimitMiddleware } from 'langchain';
+import type { AgentMiddleware } from 'langchain';
 import type { BaseLanguageModel } from '@langchain/core/language_models/base';
 import type { AgentSettingsConfig } from '../../types/agent';
 
-export function getAgentMiddlewares(model: BaseLanguageModel, agentSettings: AgentSettingsConfig | null) {
-  const middlewares: any[] = [];
+const DEFAULT_RUN_LIMIT = 20;
+
+export function getAgentMiddlewares(
+  model: BaseLanguageModel,
+  agentSettings: AgentSettingsConfig | null,
+  mcpToolNames: string[] = []
+): AgentMiddleware[] {
+  const middlewares: AgentMiddleware[] = [];
 
   if (!agentSettings || !agentSettings.enabledMiddlewares) {
     return middlewares;
@@ -25,6 +32,13 @@ export function getAgentMiddlewares(model: BaseLanguageModel, agentSettings: Age
 
   if (enabledMiddlewares.includes('TodoListMiddleware')) {
     middlewares.push(todoListMiddleware());
+  }
+
+  if (enabledMiddlewares.includes('ToolCallLimitMiddleware') && mcpToolNames.length > 0) {
+    const runLimit = middlewareSettings?.toolCallLimit?.runLimit || DEFAULT_RUN_LIMIT;
+    for (const toolName of mcpToolNames) {
+      middlewares.push(toolCallLimitMiddleware({ toolName, runLimit, exitBehavior: 'continue' }));
+    }
   }
 
   return middlewares;

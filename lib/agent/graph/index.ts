@@ -62,7 +62,8 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
   const checkpointer = new ChromeStorageCheckpointer();
 
   // 6. Initialize Middlewares
-  const middleware = getAgentMiddlewares(model, agentSettings);
+  const mcpToolNames = filteredMcpTools.map((t) => t.name);
+  const middleware = getAgentMiddlewares(model, agentSettings, mcpToolNames);
 
   // 7. Create Agent
   const systemPrompt = agentSettings?.systemPrompt || DEFAULT_SYSTEM_PROMPT;

@@ -138,6 +138,10 @@ export function useAgentSettings(agentId?: string) {
     });
   };
 
+  const setRecursionLimit = (value: number | undefined): void => {
+    updateConfig({ recursionLimit: value });
+  };
+
   return {
     config,
     isLoaded,
@@ -148,6 +152,7 @@ export function useAgentSettings(agentId?: string) {
     toggleMcpTool,
     setSystemPrompt,
     toggleMiddleware,
-    updateMiddlewareSettings
+    updateMiddlewareSettings,
+    setRecursionLimit
   };
 }

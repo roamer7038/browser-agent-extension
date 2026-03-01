@@ -36,7 +36,11 @@ export interface AgentSettingsConfig {
     summarization?: {
       maxTokens?: number;
     };
+    toolCallLimit?: {
+      runLimit?: number;
+    };
   };
+  recursionLimit?: number;
 }
 
 /** Default agent identifier used when no specific agent is specified. */

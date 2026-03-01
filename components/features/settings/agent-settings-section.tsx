@@ -6,6 +6,7 @@ import { ModelSelector } from './model-selector';
 import { ToolToggleList } from './tool-toggle-list';
 import { McpToolIntegration } from './mcp-tool-integration';
 import { MiddlewareSettings } from './middleware-settings';
+import { MiscSettings } from './misc-settings';
 
 interface AgentSettingsSectionProps {
   agentConfig: AgentSettingsConfig;
@@ -18,6 +19,7 @@ interface AgentSettingsSectionProps {
   toggleMcpTool: (toolName: string, enabled: boolean) => void;
   toggleMiddleware: (middlewareName: string, enabled: boolean) => void;
   updateMiddlewareSettings: (settings: NonNullable<AgentSettingsConfig['middlewareSettings']>) => void;
+  setRecursionLimit: (value: number | undefined) => void;
 }
 
 export function AgentSettingsSection({
@@ -30,7 +32,8 @@ export function AgentSettingsSection({
   toggleMcpServer,
   toggleMcpTool,
   toggleMiddleware,
-  updateMiddlewareSettings
+  updateMiddlewareSettings,
+  setRecursionLimit
 }: AgentSettingsSectionProps) {
   return (
     <div className='space-y-8'>
@@ -66,6 +69,8 @@ export function AgentSettingsSection({
         onToggle={toggleMiddleware}
         onUpdateSettings={updateMiddlewareSettings}
       />
+
+      <MiscSettings recursionLimit={agentConfig.recursionLimit} onRecursionLimitChange={setRecursionLimit} />
     </div>
   );
 }

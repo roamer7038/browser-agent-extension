@@ -25,7 +25,8 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
     toggleMcpTool,
     setSystemPrompt,
     toggleMiddleware,
-    updateMiddlewareSettings
+    updateMiddlewareSettings,
+    setRecursionLimit
   } = useAgentSettings();
   const mcpServerProps = useMcpServers();
 
@@ -98,6 +99,7 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
               toggleMcpTool={toggleMcpTool}
               toggleMiddleware={toggleMiddleware}
               updateMiddlewareSettings={updateMiddlewareSettings}
+              setRecursionLimit={setRecursionLimit}
             />
           </div>
         );

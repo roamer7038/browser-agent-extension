@@ -9,6 +9,8 @@ import { mapRawMessages } from '@/lib/agent/message-mapper';
 import type { MappedMessage } from '@/lib/agent/message-mapper';
 import type { AgentExecutorType, ChatRequestMessage } from '@/lib/types/agent';
 
+const DEFAULT_RECURSION_LIMIT = 100;
+
 /**
  * Extracts token usage from the latest AI message in the thread.
  * This reflects the current context window usage rather than cumulative totals,
@@ -37,6 +39,10 @@ export async function handleChatMessage(
   const { message, threadId } = request;
   const config = { configurable: { thread_id: threadId || uuidv4() } };
 
+  // Load recursionLimit from agent settings
+  const agentSettings = await StorageService.getActiveAgentConfig();
+  const recursionLimit = agentSettings?.recursionLimit || DEFAULT_RECURSION_LIMIT;
+
   // Save as active thread
   await StorageService.setLastActiveThreadId(config.configurable.thread_id);
 
@@ -44,7 +50,10 @@ export async function handleChatMessage(
     port.postMessage({ type: 'stream_start', threadId: config.configurable.thread_id });
 
     try {
-      const eventStream = await agentExecutor.streamEvents({ messages: [message] }, { version: 'v2', ...config });
+      const eventStream = await agentExecutor.streamEvents(
+        { messages: [message] },
+        { version: 'v2', recursionLimit, ...config }
+      );
 
       for await (const { event, name, data } of eventStream) {
         if (event === 'on_chat_model_stream' && data.chunk) {
@@ -115,7 +124,7 @@ export async function handleChatMessage(
   }
 
   // Execute agent (legacy fallback)
-  const result = await agentExecutor.invoke({ messages: [message] }, config);
+  const result = await agentExecutor.invoke({ messages: [message] }, { recursionLimit, ...config });
 
   // Get last message
   const lastMessage = result.messages[result.messages.length - 1];
