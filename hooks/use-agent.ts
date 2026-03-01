@@ -124,7 +124,6 @@ export function useAgent() {
             }
 
             setMessages([...baseMessages, ...accumulatedMessages, ...tail]);
-            setIsLoading(false); // Hide the global "thinking" spinner since we are streaming results
           } else if (msg.type === 'tool_start') {
             if (currentReasoning) {
               accumulatedMessages.push({ role: 'reasoning', content: currentReasoning, type: 'reasoning' });
