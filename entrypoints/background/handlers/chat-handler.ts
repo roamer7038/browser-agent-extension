@@ -1,6 +1,7 @@
 // entrypoints/background/handlers/chat-handler.ts
 /// <reference types="chrome"/>
 import { v4 as uuidv4 } from 'uuid';
+import { SystemMessage } from '@langchain/core/messages';
 import type { ChatMessageResponse } from '@/lib/types/message';
 import { StorageService } from '@/lib/services/storage/storage-service';
 import { mapRawMessages } from '@/lib/agent/message-mapper';
@@ -76,7 +77,15 @@ export async function handleChatMessage(
       });
     } catch (error: any) {
       console.error('Streaming error:', error);
-      port.postMessage({ type: 'error', error: error.message || 'Stream failed' });
+      const errorMessage = error.message || 'Stream failed';
+      port.postMessage({ type: 'error', error: errorMessage });
+      try {
+        await agentExecutor.updateState(config, {
+          messages: [new SystemMessage({ content: `[Error] ${errorMessage}` })]
+        });
+      } catch (e) {
+        console.error('Failed to update state with error:', e);
+      }
     }
     return;
   }

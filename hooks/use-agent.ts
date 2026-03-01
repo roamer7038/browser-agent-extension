@@ -28,6 +28,9 @@ function parseMessages(rawMessages: any[]): Message[] {
     } else if (msgType === 'tool') {
       const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
       msgs.push({ role: 'tool', content, name: m.name, type: 'tool_result' });
+    } else if (msgType === 'system' || msgType === 'error') {
+      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+      msgs.push({ role: 'error', content, type: 'text' });
     }
     return msgs;
   });
