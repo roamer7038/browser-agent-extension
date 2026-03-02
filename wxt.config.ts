@@ -6,6 +6,7 @@ import path from 'path';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
+    name: 'Conduit: AI Agent for Chrome Extension',
     permissions: ['storage', 'tabs', 'activeTab', 'scripting', 'downloads', 'sidePanel'],
     host_permissions: ['<all_urls>'],
     action: {}

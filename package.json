@@ -1,5 +1,5 @@
 {
-  "name": "browser-agent-extension",
+  "name": "conduit",
   "description": "Integrate AI agents into browser",
   "private": true,
   "version": "0.1.0",

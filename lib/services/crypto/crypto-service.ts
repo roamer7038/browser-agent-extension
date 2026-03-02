@@ -9,7 +9,7 @@ export class CryptoService {
   private static readonly ALGORITHM = 'AES-GCM';
   private static readonly KEY_LENGTH = 256;
   private static readonly IV_LENGTH = 12; // 12 bytes for AES-GCM
-  private static readonly SALT = 'browser-agent-extension-crypto-v1';
+  private static readonly SALT = 'conduit-crypto-v1';
   private static readonly PREFIX = 'AES256:';
 
   /**

@@ -95,7 +95,7 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
   return (
     <SidePanelLayout>
       <SidePanelHeader
-        title='Browser Agent'
+        title='Conduit'
         leftActions={
           <>
             <Button size='icon' variant='ghost' onClick={onHistory} title='History'>
