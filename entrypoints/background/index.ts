@@ -5,7 +5,7 @@ import { MCP_SERVERS_STORAGE_KEY } from '@/lib/agent/tools/mcp-types';
 import { StorageService } from '@/lib/services/storage/storage-service';
 import { STORAGE_KEYS } from '@/lib/services/storage/storage-keys';
 import { CryptoService } from '@/lib/services/crypto/crypto-service';
-import { handleChatMessage } from './handlers/chat-handler';
+import { handleChatMessage, activeStreams } from './handlers/chat-handler';
 import { handleGetThreads, handleGetThreadHistory, handleDeleteThread } from './handlers/thread-handler';
 import { handleTestMcpConnection, handleFetchMcpTools } from './handlers/mcp-handler';
 import { handleFetchModels, handleClearModelCache } from './handlers/model-handler';
@@ -117,6 +117,17 @@ export default defineBackground(() => {
             break;
           }
 
+          case 'cancel_generation': {
+            const streamState = activeStreams.get(request.threadId);
+            if (streamState) {
+              streamState.abortController.abort();
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ error: 'Stream not found' });
+            }
+            break;
+          }
+
           case 'test_mcp_connection': {
             const result = await handleTestMcpConnection(request.server);
             sendResponse(result);
@@ -168,6 +179,14 @@ export default defineBackground(() => {
   // Handle long-lived connections for streaming
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name === 'chat_stream') {
+      port.onDisconnect.addListener(() => {
+        for (const [key, state] of activeStreams.entries()) {
+          if (state.port === port) {
+            state.port = null;
+          }
+        }
+      });
+
       port.onMessage.addListener(async (request) => {
         try {
           // Ensure agent is initialized
@@ -181,6 +200,14 @@ export default defineBackground(() => {
 
           if (request.type === 'chat_message') {
             await handleChatMessage(request, agentExecutor, port);
+          } else if (request.type === 'reconnect_stream') {
+            const streamState = activeStreams.get(request.threadId);
+            if (streamState) {
+              streamState.port = port;
+              port.postMessage({ type: 'stream_reconnected' });
+            } else {
+              port.postMessage({ type: 'stream_not_found' });
+            }
           }
         } catch (error: any) {
           console.error('Port message handler error:', error);

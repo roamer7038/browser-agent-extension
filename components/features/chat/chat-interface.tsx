@@ -5,14 +5,26 @@ import { useAgent } from '@/hooks/use-agent';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { Settings, Send, Loader2, User, Bot, History, Plus, ChevronsUp, ChevronsDown, BarChart3 } from 'lucide-react';
+import {
+  Settings,
+  Send,
+  Loader2,
+  User,
+  Bot,
+  History,
+  Plus,
+  ChevronsUp,
+  ChevronsDown,
+  BarChart3,
+  Square
+} from 'lucide-react';
 import clsx from 'clsx';
 import { SidePanelHeader } from '@/components/layouts/side-panel-header';
 import { SidePanelLayout } from '@/components/layouts/side-panel-layout';
 import { MarkdownRenderer } from './markdown-renderer';
 
 export function ChatInterface({ onSettings, onHistory }: { onSettings: () => void; onHistory: () => void }) {
-  const { messages, isLoading, sendMessage, startNewThread, tokenUsage } = useAgent();
+  const { messages, isLoading, sendMessage, startNewThread, tokenUsage, abortGeneration } = useAgent();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesTopRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -316,9 +328,21 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
                 </div>
               )}
             </div>
-            <Button size='icon' onClick={handleSend} disabled={isLoading} className='h-8 w-8 rounded-full shrink-0'>
-              <Send className='w-4 h-4' />
-            </Button>
+            {isLoading ? (
+              <Button
+                size='icon'
+                onClick={abortGeneration}
+                variant='destructive'
+                className='h-8 w-8 rounded-full shrink-0'
+                title='Stop generation'
+              >
+                <Square className='w-3 h-3 fill-current' />
+              </Button>
+            ) : (
+              <Button size='icon' onClick={handleSend} disabled={isLoading} className='h-8 w-8 rounded-full shrink-0'>
+                <Send className='w-4 h-4' />
+              </Button>
+            )}
           </div>
         </div>
       </div>

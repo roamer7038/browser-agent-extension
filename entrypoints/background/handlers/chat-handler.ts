@@ -9,6 +9,8 @@ import { mapRawMessages } from '@/lib/agent/message-mapper';
 import type { MappedMessage } from '@/lib/agent/message-mapper';
 import type { AgentExecutorType, ChatRequestMessage } from '@/lib/types/agent';
 
+export const activeStreams = new Map<string, { abortController: AbortController; port: chrome.runtime.Port | null }>();
+
 const DEFAULT_RECURSION_LIMIT = 100;
 
 /**
@@ -35,26 +37,32 @@ export async function handleChatMessage(
 ): Promise<ChatMessageResponse | void> {
   const { message, threadId } = request;
   const config = { configurable: { thread_id: threadId || uuidv4() } };
+  const actualThreadId = config.configurable.thread_id;
 
   // Load recursionLimit from agent settings
   const agentSettings = await StorageService.getActiveAgentConfig();
   const recursionLimit = agentSettings?.recursionLimit || DEFAULT_RECURSION_LIMIT;
 
   // Save as active thread
-  await StorageService.setLastActiveThreadId(config.configurable.thread_id);
+  await StorageService.setLastActiveThreadId(actualThreadId);
 
   if (port) {
-    port.postMessage({ type: 'stream_start', threadId: config.configurable.thread_id });
+    const abortController = new AbortController();
+    activeStreams.set(actualThreadId, { abortController, port });
+
+    const getActivePort = () => activeStreams.get(actualThreadId)?.port;
+
+    getActivePort()?.postMessage({ type: 'stream_start', threadId: actualThreadId });
 
     try {
       const eventStream = await agentExecutor.streamEvents(
         { messages: [message] },
-        { version: 'v2', recursionLimit, ...config }
+        { version: 'v2', recursionLimit, signal: abortController.signal, ...config }
       );
 
       for await (const { event, name, data } of eventStream) {
         if (event === 'on_chat_model_stream' && data.chunk) {
-          port.postMessage({
+          getActivePort()?.postMessage({
             type: 'stream_chunk',
             chunk: {
               content: data.chunk.content || '',
@@ -63,13 +71,13 @@ export async function handleChatMessage(
             }
           });
         } else if (event === 'on_tool_start') {
-          port.postMessage({
+          getActivePort()?.postMessage({
             type: 'tool_start',
             name: name,
             input: data.input
           });
         } else if (event === 'on_tool_end') {
-          port.postMessage({
+          getActivePort()?.postMessage({
             type: 'tool_end',
             name: name,
             output: data.output
@@ -81,7 +89,7 @@ export async function handleChatMessage(
       const screenshotDataUrl = await StorageService.getLastScreenshotDataUrl();
       if (screenshotDataUrl) {
         // Save screenshot to thread
-        await StorageService.saveScreenshot(config.configurable.thread_id, screenshotDataUrl);
+        await StorageService.saveScreenshot(actualThreadId, screenshotDataUrl);
         await StorageService.removeLastScreenshotDataUrl();
       }
 
@@ -92,30 +100,37 @@ export async function handleChatMessage(
       const messages = mapRawMessages(rawMessages as unknown[]);
       const totalUsage = getCumulativeTokenUsage(messages);
 
-      const screenshots = await StorageService.getScreenshots(config.configurable.thread_id);
+      const screenshots = await StorageService.getScreenshots(actualThreadId);
 
-      port.postMessage({
+      getActivePort()?.postMessage({
         type: 'stream_end',
         response: {
           response: messages.length > 0 ? messages[messages.length - 1].content : '',
           messages,
           screenshots,
-          threadId: config.configurable.thread_id,
+          threadId: actualThreadId,
           screenshotDataUrl: screenshotDataUrl || undefined,
           totalUsage
         }
       });
     } catch (error: unknown) {
-      const errorMessage = (error instanceof Error ? error.message : String(error)) || 'Stream failed';
-      console.error('Streaming error:', error);
-      port.postMessage({ type: 'error', error: errorMessage });
-      try {
-        await agentExecutor.updateState(config, {
-          messages: [new SystemMessage({ content: `[Error] ${errorMessage}` })]
-        });
-      } catch (e) {
-        console.error('Failed to update state with error:', e);
+      if ((error as any).name === 'AbortError') {
+        console.log('Stream aborted by user');
+        getActivePort()?.postMessage({ type: 'stream_abort' });
+      } else {
+        const errorMessage = (error instanceof Error ? error.message : String(error)) || 'Stream failed';
+        console.error('Streaming error:', error);
+        getActivePort()?.postMessage({ type: 'error', error: errorMessage });
+        try {
+          await agentExecutor.updateState(config, {
+            messages: [new SystemMessage({ content: `[Error] ${errorMessage}` })]
+          });
+        } catch (e) {
+          console.error('Failed to update state with error:', e);
+        }
       }
+    } finally {
+      activeStreams.delete(actualThreadId);
     }
     return;
   }
@@ -130,7 +145,7 @@ export async function handleChatMessage(
   const screenshotDataUrl = await StorageService.getLastScreenshotDataUrl();
   if (screenshotDataUrl) {
     // Save screenshot to thread
-    await StorageService.saveScreenshot(config.configurable.thread_id, screenshotDataUrl);
+    await StorageService.saveScreenshot(actualThreadId, screenshotDataUrl);
     await StorageService.removeLastScreenshotDataUrl();
   }
 
@@ -139,13 +154,13 @@ export async function handleChatMessage(
   const messages = mapRawMessages(rawMessages);
   const totalUsage = getCumulativeTokenUsage(messages);
 
-  const screenshots = await StorageService.getScreenshots(config.configurable.thread_id);
+  const screenshots = await StorageService.getScreenshots(actualThreadId);
 
   return {
     response: lastMessage.content,
     messages,
     screenshots,
-    threadId: config.configurable.thread_id,
+    threadId: actualThreadId,
     screenshotDataUrl: screenshotDataUrl || undefined,
     totalUsage
   };
