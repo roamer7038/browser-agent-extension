@@ -14,16 +14,18 @@ export const activeStreams = new Map<string, { abortController: AbortController;
 const DEFAULT_RECURSION_LIMIT = 100;
 
 /**
- * Extracts and sums token usage from all AI messages in the thread.
+ * Extracts token usage from the latest AI message in the thread.
  */
-function getCumulativeTokenUsage(messages: MappedMessage[]): ThreadTokenUsage {
+function getLatestTokenUsage(messages: MappedMessage[]): ThreadTokenUsage {
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
-  for (const msg of messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
     if (msg.type === 'ai' && msg.usage_metadata) {
-      usage.inputTokens += msg.usage_metadata.input_tokens;
-      usage.outputTokens += msg.usage_metadata.output_tokens;
-      usage.totalTokens += msg.usage_metadata.total_tokens;
+      usage.inputTokens = msg.usage_metadata.input_tokens;
+      usage.outputTokens = msg.usage_metadata.output_tokens;
+      usage.totalTokens = msg.usage_metadata.total_tokens;
+      break;
     }
   }
 
@@ -98,7 +100,7 @@ export async function handleChatMessage(
       const stateValues = (currentState as Record<string, unknown>).values || {};
       const rawMessages = (stateValues as Record<string, unknown>).messages || [];
       const messages = mapRawMessages(rawMessages as unknown[]);
-      const totalUsage = getCumulativeTokenUsage(messages);
+      const totalUsage = getLatestTokenUsage(messages);
 
       const screenshots = await StorageService.getScreenshots(actualThreadId);
 
@@ -152,7 +154,7 @@ export async function handleChatMessage(
   // Generate mapped messages
   const rawMessages = result.messages || [];
   const messages = mapRawMessages(rawMessages);
-  const totalUsage = getCumulativeTokenUsage(messages);
+  const totalUsage = getLatestTokenUsage(messages);
 
   const screenshots = await StorageService.getScreenshots(actualThreadId);
 
