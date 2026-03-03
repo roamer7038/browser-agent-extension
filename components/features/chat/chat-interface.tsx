@@ -18,28 +18,31 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(false);
-  const isAutoScrolling = useRef(false);
+  const isAutoScrolling = useRef<'up' | 'down' | false>(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    isAutoScrolling.current = true;
+  const scrollToBottom = useCallback((smooth = true) => {
+    isAutoScrolling.current = 'down';
     shouldAutoScroll.current = true;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
 
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
 
-    scrollTimeoutRef.current = setTimeout(() => {
-      isAutoScrolling.current = false;
-    }, 500);
+    scrollTimeoutRef.current = setTimeout(
+      () => {
+        isAutoScrolling.current = false;
+      },
+      smooth ? 500 : 100
+    );
   }, []);
 
   const scrollToTop = useCallback(() => {
-    isAutoScrolling.current = true;
+    isAutoScrolling.current = 'up';
     shouldAutoScroll.current = false;
     messagesTopRef.current?.scrollIntoView({ behavior: 'smooth' });
 
@@ -52,6 +55,15 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
     }, 500);
   }, []);
 
+  const handleUserInteraction = useCallback(() => {
+    isAutoScrolling.current = false;
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+  }, []);
+
+  const lastScrollTopRef = useRef<number>(0);
+
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -60,17 +72,33 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
     const isScrollable = scrollHeight > clientHeight;
     const isAtBottom = isScrollable && distanceToBottom <= 80;
 
+    // Detect if the user manually scrolled up during a DOWN auto-scroll
+    if (isAutoScrolling.current === 'down' && scrollTop < lastScrollTopRef.current) {
+      isAutoScrolling.current = false;
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    }
+    // Detect if the user manually scrolled down during an UP auto-scroll
+    else if (isAutoScrolling.current === 'up' && scrollTop > lastScrollTopRef.current) {
+      isAutoScrolling.current = false;
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    }
+
     if (!isAutoScrolling.current) {
       shouldAutoScroll.current = isAtBottom;
     }
 
+    lastScrollTopRef.current = scrollTop;
     setShowScrollTop(scrollTop > 80);
     setShowScrollBottom(isScrollable && distanceToBottom > 80);
   }, []);
 
   useEffect(() => {
     if (shouldAutoScroll.current) {
-      scrollToBottom();
+      scrollToBottom(false);
     } else {
       handleScroll();
     }
@@ -81,7 +109,7 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
     if (content) {
       sendMessage(content);
       if (inputRef.current) inputRef.current.value = '';
-      scrollToBottom();
+      scrollToBottom(true);
     }
   };
 
@@ -114,7 +142,14 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
       />
 
       {/* Messages（スクロール可能エリア） */}
-      <div ref={scrollContainerRef} className='relative flex-1 overflow-y-auto px-4 py-4' onScroll={handleScroll}>
+      <div
+        ref={scrollContainerRef}
+        className='relative flex-1 overflow-y-auto px-4 py-4'
+        onScroll={handleScroll}
+        onWheel={handleUserInteraction}
+        onTouchStart={handleUserInteraction}
+        onPointerDown={handleUserInteraction}
+      >
         <div ref={messagesTopRef} />
 
         <div className='space-y-4'>
@@ -242,7 +277,7 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
                 size='icon'
                 variant='secondary'
                 className='h-8 w-8 rounded-full shadow-md opacity-80 hover:opacity-100'
-                onClick={scrollToBottom}
+                onClick={() => scrollToBottom(true)}
                 title='末尾へ'
               >
                 <ChevronsDown className='w-4 h-4' />
