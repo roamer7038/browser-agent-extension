@@ -25,39 +25,58 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
 
     let isMounted = true;
     let fallbackTimer: ReturnType<typeof setTimeout>;
+    let renderTimer: ReturnType<typeof setTimeout>;
 
     // Check if the chart is empty or incomplete during streaming
     if (!chart || chart.trim() === '') return;
 
-    try {
-      mermaid
-        .render(id, chart)
-        .then((result) => {
-          if (isMounted) {
-            setSvg(result.svg);
-            setError(false);
-          }
-        })
-        .catch((e) => {
-          console.error('Mermaid rendering error:', e);
-          fallbackTimer = setTimeout(() => {
-            if (isMounted) setError(true);
-          }, 800);
-        });
-    } catch (e) {
-      console.error('Mermaid rendering error:', e);
-      fallbackTimer = setTimeout(() => {
-        if (isMounted) setError(true);
-      }, 800);
-    }
+    const renderChart = async () => {
+      try {
+        // Validate syntax to avoid Mermaid's global error overlay if possible
+        let isValid = true;
+        try {
+          const parseResult = await mermaid.parse(chart, { suppressErrors: true });
+          if (parseResult === false) isValid = false;
+        } catch (e) {
+          isValid = false;
+        }
+
+        if (!isValid) {
+          throw new Error('Mermaid syntax error');
+        }
+
+        const result = await mermaid.render(id, chart);
+
+        // Mermaid sometimes handles errors gracefully returning a huge SVG that breaks the UI container
+        if (result.svg.includes('Syntax error') || result.svg.includes('SyntaxError')) {
+          throw new Error('Mermaid fallback error SVG detected');
+        }
+
+        if (isMounted) {
+          setSvg(result.svg);
+          setError(false);
+        }
+      } catch (e) {
+        console.error('Mermaid rendering error:', e);
+        fallbackTimer = setTimeout(() => {
+          if (isMounted) setError(true);
+        }, 800);
+      }
+    };
+
+    // Debounce the rendering by 300ms to avoid constant re-renders layout shifting during streaming
+    renderTimer = setTimeout(() => {
+      renderChart();
+    }, 300);
 
     return () => {
       isMounted = false;
       clearTimeout(fallbackTimer);
+      clearTimeout(renderTimer);
     };
   }, [chart, id]);
 
-  if (error) {
+  if (error && !svg) {
     return (
       <div className='p-4 bg-destructive/10 text-destructive rounded-md border border-destructive/20 overflow-x-auto text-sm my-4'>
         <p className='font-semibold mb-2'>Invalid or incomplete Mermaid diagram:</p>
