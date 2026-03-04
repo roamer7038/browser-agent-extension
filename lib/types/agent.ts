@@ -41,6 +41,8 @@ export interface AgentSettingsConfig {
     };
   };
   recursionLimit?: number;
+  temperature?: number;
+  topP?: number;
 }
 
 /** Default agent identifier used when no specific agent is specified. */
@@ -80,4 +82,6 @@ export interface GraphAgentConfig {
   baseUrl?: string;
   modelName: string;
   providerType?: string;
+  temperature?: number;
+  topP?: number;
 }

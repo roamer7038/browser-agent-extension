@@ -19,6 +19,7 @@ interface AgentSettingsSectionProps {
   toggleMcpTool: (toolName: string, enabled: boolean) => void;
   toggleMiddleware: (middlewareName: string, enabled: boolean) => void;
   updateMiddlewareSettings: (settings: NonNullable<AgentSettingsConfig['middlewareSettings']>) => void;
+  setModelParams: (temperature: number, topP: number) => void;
   setRecursionLimit: (value: number | undefined) => void;
 }
 
@@ -33,6 +34,7 @@ export function AgentSettingsSection({
   toggleMcpTool,
   toggleMiddleware,
   updateMiddlewareSettings,
+  setModelParams,
   setRecursionLimit
 }: AgentSettingsSectionProps) {
   return (
@@ -43,8 +45,11 @@ export function AgentSettingsSection({
         modelName={agentConfig.modelName}
         providerId={agentConfig.providerId}
         providers={providers}
+        temperature={agentConfig.temperature}
+        topP={agentConfig.topP}
         onModelChange={setProviderAndModel}
         onProviderChange={(newProviderId) => setProviderAndModel(newProviderId, '')}
+        onParamsChange={setModelParams}
       />
 
       <ToolToggleList

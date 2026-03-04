@@ -13,29 +13,39 @@ import {
   ComboboxEmpty,
   useComboboxAnchor
 } from '@/components/ui/combobox';
-import { Cpu } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 import type { LlmProviderConfig } from '@/lib/types/agent';
 import { useModelSelection } from '@/hooks/use-model-selection';
+import { ModelParamsSelector } from './model-params-selector';
 
 interface ModelSelectorProps {
   providerId: string;
   modelName: string;
   providers: LlmProviderConfig[];
+  temperature?: number;
+  topP?: number;
   onProviderChange: (providerId: string) => void;
   onModelChange: (providerId: string, modelName: string) => void;
+  onParamsChange: (temperature: number, topP: number) => void;
 }
 
 export function ModelSelector({
   providerId,
   modelName,
   providers,
+  temperature,
+  topP,
   onProviderChange,
-  onModelChange
+  onModelChange,
+  onParamsChange
 }: ModelSelectorProps) {
   const currentProvider = providers.find((p) => p.id === providerId);
   const { availableModels, modelsLoading, handleRefreshModels } = useModelSelection(providerId);
 
   const [inputValue, setInputValue] = useState(modelName || '');
+  const [isParamsOpen, setIsParamsOpen] = useState(false);
 
   useEffect(() => {
     setInputValue(modelName || '');
@@ -153,6 +163,20 @@ export function ModelSelector({
               )}
             </Combobox>
           </div>
+
+          <div className='separator h-px bg-border my-2' />
+
+          <Collapsible open={isParamsOpen} onOpenChange={setIsParamsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant='ghost' size='sm' className='flex w-full items-center justify-between p-2 h-8'>
+                <span className='text-sm font-medium'>詳細なモデルパラメータ</span>
+                {isParamsOpen ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className='animate-in slide-in-from-top-2 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-2 overflow-hidden px-1'>
+              <ModelParamsSelector temperature={temperature} topP={topP} onParamsChange={onParamsChange} />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </Card>
     </div>

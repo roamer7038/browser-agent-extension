@@ -23,7 +23,9 @@ export function useAgentSettings(agentId?: string) {
     disabledMcpTools: [],
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     enabledMiddlewares: [],
-    middlewareSettings: {}
+    middlewareSettings: {},
+    temperature: 0.7,
+    topP: 1.0
   });
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -44,7 +46,9 @@ export function useAgentSettings(agentId?: string) {
         disabledMcpTools: [],
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
         enabledMiddlewares: [],
-        middlewareSettings: {}
+        middlewareSettings: {},
+        temperature: 0.7,
+        topP: 1.0
       };
       setConfig(defaultConfig);
     }
@@ -152,6 +156,10 @@ export function useAgentSettings(agentId?: string) {
     updateConfig({ recursionLimit: value });
   };
 
+  const setModelParams = (temperature: number, topP: number): void => {
+    updateConfig({ temperature, topP });
+  };
+
   return {
     config,
     isLoaded,
@@ -163,6 +171,7 @@ export function useAgentSettings(agentId?: string) {
     setSystemPrompt,
     toggleMiddleware,
     updateMiddlewareSettings,
-    setRecursionLimit
+    setRecursionLimit,
+    setModelParams
   };
 }

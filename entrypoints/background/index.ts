@@ -33,7 +33,9 @@ export default defineBackground(() => {
             apiKey: provider.apiKey,
             baseUrl: provider.baseUrl,
             modelName: agentConfig.modelName,
-            providerType: provider.providerType
+            providerType: provider.providerType,
+            temperature: agentConfig.temperature,
+            topP: agentConfig.topP
           });
           console.log('[Agent Init] Agent initialized successfully.');
         } catch (error) {

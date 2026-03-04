@@ -8,6 +8,7 @@ export interface LLMConfig {
   modelName?: string;
   baseUrl?: string;
   temperature?: number;
+  topP?: number;
 }
 
 export class LLMFactory {
@@ -22,13 +23,15 @@ export class LLMFactory {
             baseURL: config.baseUrl
           },
           temperature: config.temperature ?? 0,
+          topP: config.topP ?? 1,
           streaming: true
         });
       case 'ollama': {
         return new ChatOllama({
           model: config.modelName,
           baseUrl: config.baseUrl,
-          temperature: config.temperature ?? 0
+          temperature: config.temperature ?? 0,
+          topP: config.topP ?? 1
         });
       }
       // Future expansion

@@ -26,12 +26,13 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
     activeMcpClient = null;
   }
 
-  // 1. Initialize LLM
   const model = LLMFactory.createModel({
     provider: config.providerType || 'openai',
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
-    modelName: config.modelName || 'gpt-5'
+    modelName: config.modelName || 'gpt-5',
+    temperature: config.temperature,
+    topP: config.topP
   });
 
   // 2. Initialize Built-in Browser Tools — filter by user preferences
