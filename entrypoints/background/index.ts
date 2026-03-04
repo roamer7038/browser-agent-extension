@@ -25,7 +25,9 @@ export default defineBackground(() => {
     if (agentConfig?.providerId) {
       const provider = providers.find((p) => p.id === agentConfig.providerId);
       if (provider?.apiKey || provider?.providerType === 'ollama') {
-        console.log('Initializing agent...');
+        console.log(
+          `[Agent Init] Starting initialization for ${provider.providerType} (${agentConfig.modelName || 'default'})...`
+        );
         try {
           agentExecutor = await createLangGraphAgent({
             apiKey: provider.apiKey,
@@ -33,9 +35,9 @@ export default defineBackground(() => {
             modelName: agentConfig.modelName,
             providerType: provider.providerType
           });
-          console.log('Agent initialized.');
+          console.log('[Agent Init] Agent initialized successfully.');
         } catch (error) {
-          console.error('Failed to initialize agent:', error);
+          console.error('[Agent Init] Failed to initialize agent:', error);
           agentExecutor = null;
         }
       }

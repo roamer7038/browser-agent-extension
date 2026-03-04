@@ -45,17 +45,21 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
 
   const browserTools = allBrowserTools.filter((t) => enabledBrowserTools.includes(t.name));
 
+  console.log(`[Agent Setup] Model: ${config.modelName || 'gpt-5'}`);
+  console.log(`[Agent Setup] Filtered Browser Tools: ${browserTools.length} enabled`);
+
   // 3. Initialize Remote MCP Tools
   const mcpServers = await StorageService.getMcpServers();
   const { tools: mcpTools, client: mcpClient } = await createMcpTools(mcpServers, enabledMcpServers);
   activeMcpClient = mcpClient;
 
   if (mcpTools.length > 0) {
-    console.log(`Loaded ${mcpTools.length} MCP tool(s) from remote server(s).`);
+    console.log(`[Agent Setup] Loaded ${mcpTools.length} MCP tool(s) from remote server(s).`);
   }
 
   // 4. Combine all tools (filter out disabled MCP tools)
   const filteredMcpTools = mcpTools.filter((t) => !disabledMcpTools.includes(t.name));
+  console.log(`[Agent Setup] Active MCP Tools: ${filteredMcpTools.length} enabled`);
   const tools: DynamicStructuredTool[] = [...browserTools, ...filteredMcpTools];
 
   // 5. Initialize Checkpointer
@@ -64,6 +68,8 @@ export async function createLangGraphAgent(config: GraphAgentConfig) {
   // 6. Initialize Middlewares
   const mcpToolNames = filteredMcpTools.map((t) => t.name);
   const middleware = getAgentMiddlewares(model, agentSettings, mcpToolNames);
+  const enabledMiddlewares = agentSettings?.enabledMiddlewares || [];
+  console.log(`[Agent Setup] Active Middlewares (${middleware.length}): ${enabledMiddlewares.join(', ') || 'None'}`);
 
   // 7. Create Agent
   const systemPrompt = agentSettings?.systemPrompt || DEFAULT_SYSTEM_PROMPT;
