@@ -10,8 +10,14 @@ function parseMessages(rawMessages: Record<string, unknown>[]): Message[] {
       (m.id?.toString().includes('AI') ? 'ai' : m.id?.toString().includes('Human') ? 'human' : null);
 
     if (msgType === 'human') {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      msgs.push({ role: 'user', content, type: 'text' });
+      const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
+      if (additionalKwargs.lc_source === 'summarization') {
+        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        msgs.push({ role: 'system', content, type: 'system' });
+      } else {
+        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        msgs.push({ role: 'user', content, type: 'text' });
+      }
     } else if (msgType === 'ai') {
       const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
       if (additionalKwargs.reasoning_content) {

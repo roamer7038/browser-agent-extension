@@ -16,6 +16,7 @@ import {
   ChevronsUp,
   ChevronsDown,
   BarChart3,
+  ArchiveRestore,
   Square
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -194,6 +195,17 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
                   >
                     <img alt='Screenshot' className='max-w-full block' src={msg.content} />
                   </button>
+                </div>
+              );
+            }
+
+            if (msg.role === 'system' && msg.type === 'system') {
+              return (
+                <div key={idx} className='flex justify-center mb-6 mt-2'>
+                  <div className='flex items-center gap-2 bg-muted/60 text-muted-foreground border rounded-full px-4 py-1.5 text-xs'>
+                    <ArchiveRestore className='w-3.5 h-3.5' />
+                    <span>Conversation history has been summarized</span>
+                  </div>
                 </div>
               );
             }

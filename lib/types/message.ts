@@ -15,9 +15,9 @@ export interface ThreadTokenUsage {
 }
 
 export interface Message {
-  role: 'user' | 'assistant' | 'error' | 'tool' | 'reasoning';
+  role: 'user' | 'assistant' | 'error' | 'tool' | 'reasoning' | 'system';
   content: string;
-  type?: 'text' | 'image' | 'tool_call' | 'tool_result' | 'reasoning';
+  type?: 'text' | 'image' | 'tool_call' | 'tool_result' | 'reasoning' | 'system';
   name?: string;
   usageMetadata?: TokenUsageMetadata;
 }
