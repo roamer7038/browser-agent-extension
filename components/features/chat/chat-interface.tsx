@@ -1,138 +1,26 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAgent } from '@/hooks/use-agent';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import {
-  Settings,
-  Send,
-  Loader2,
-  User,
-  Bot,
-  History,
-  Plus,
-  ChevronsUp,
-  ChevronsDown,
-  BarChart3,
-  ArchiveRestore,
-  Square
-} from 'lucide-react';
-import clsx from 'clsx';
+import { Settings, History, Plus } from 'lucide-react';
 import { SidePanelHeader } from '@/components/layouts/side-panel-header';
 import { SidePanelLayout } from '@/components/layouts/side-panel-layout';
-import { MarkdownRenderer } from './markdown-renderer';
+import { ChatMessageList, type ChatMessageListRef } from './chat-message-list';
+import { ChatInputArea } from './chat-input-area';
 
 export function ChatInterface({ onSettings, onHistory }: { onSettings: () => void; onHistory: () => void }) {
   const { messages, isLoading, sendMessage, startNewThread, tokenUsage, abortGeneration } = useAgent();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const messagesTopRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScroll = useRef(false);
-  const isAutoScrolling = useRef<'up' | 'down' | false>(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const messageListRef = useRef<ChatMessageListRef>(null);
 
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const scrollToBottom = useCallback((smooth = true) => {
-    isAutoScrolling.current = 'down';
-    shouldAutoScroll.current = true;
-    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
-
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    scrollTimeoutRef.current = setTimeout(
-      () => {
-        isAutoScrolling.current = false;
-      },
-      smooth ? 500 : 100
-    );
-  }, []);
-
-  const scrollToTop = useCallback(() => {
-    isAutoScrolling.current = 'up';
-    shouldAutoScroll.current = false;
-    messagesTopRef.current?.scrollIntoView({ behavior: 'smooth' });
-
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    scrollTimeoutRef.current = setTimeout(() => {
-      isAutoScrolling.current = false;
-    }, 500);
-  }, []);
-
-  const handleUserInteraction = useCallback(() => {
-    isAutoScrolling.current = false;
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-  }, []);
-
-  const lastScrollTopRef = useRef<number>(0);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
-    const isScrollable = scrollHeight > clientHeight;
-    const isAtBottom = isScrollable && distanceToBottom <= 80;
-
-    // Detect if the user manually scrolled up during a DOWN auto-scroll
-    if (isAutoScrolling.current === 'down' && scrollTop < lastScrollTopRef.current) {
-      isAutoScrolling.current = false;
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    }
-    // Detect if the user manually scrolled down during an UP auto-scroll
-    else if (isAutoScrolling.current === 'up' && scrollTop > lastScrollTopRef.current) {
-      isAutoScrolling.current = false;
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    }
-
-    if (!isAutoScrolling.current) {
-      shouldAutoScroll.current = isAtBottom;
-    }
-
-    lastScrollTopRef.current = scrollTop;
-    setShowScrollTop(scrollTop > 80);
-    setShowScrollBottom(isScrollable && distanceToBottom > 80);
-  }, []);
-
-  useEffect(() => {
-    if (shouldAutoScroll.current) {
-      scrollToBottom(false);
-    } else {
-      handleScroll();
-    }
-  }, [messages, isLoading, scrollToBottom, handleScroll]);
-
-  const handleSend = () => {
-    const content = inputRef.current?.value.trim();
-    if (content) {
+  const handleSend = useCallback(
+    (content: string) => {
       sendMessage(content);
-      if (inputRef.current) inputRef.current.value = '';
-      scrollToBottom(true);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+      messageListRef.current?.scrollToBottom(true);
+    },
+    [sendMessage]
+  );
 
   return (
     <SidePanelLayout>
@@ -155,212 +43,9 @@ export function ChatInterface({ onSettings, onHistory }: { onSettings: () => voi
         }
       />
 
-      {/* Messages（スクロール可能エリア） */}
-      <div
-        ref={scrollContainerRef}
-        className='relative flex-1 overflow-y-auto px-4 py-4'
-        onScroll={handleScroll}
-        onWheel={handleUserInteraction}
-        onTouchStart={handleUserInteraction}
-        onPointerDown={handleUserInteraction}
-      >
-        <div ref={messagesTopRef} />
+      <ChatMessageList ref={messageListRef} messages={messages} isLoading={isLoading} onImageClick={setSelectedImage} />
 
-        <div className='space-y-4'>
-          {messages.length === 0 && (
-            <div className='text-center text-muted-foreground mt-10'>
-              <p>Hi! I&apos;m your browser agent.</p>
-              <p className='text-sm'>How can I help you today?</p>
-            </div>
-          )}
-
-          {messages.map((msg, idx) => {
-            if (msg.role === 'user') {
-              return (
-                <div key={idx} className='flex justify-end mb-4'>
-                  <div className='bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap break-words'>
-                    {msg.content}
-                  </div>
-                </div>
-              );
-            }
-
-            if (msg.type === 'image') {
-              return (
-                <div key={idx} className='flex justify-start mb-4'>
-                  <button
-                    className='block rounded-lg overflow-hidden border shadow-sm hover:opacity-90 transition-opacity cursor-zoom-in max-w-[85%] text-left'
-                    onClick={() => setSelectedImage(msg.content)}
-                    title='クリックで原寸表示'
-                    type='button'
-                  >
-                    <img alt='Screenshot' className='max-w-full block' src={msg.content} />
-                  </button>
-                </div>
-              );
-            }
-
-            if (msg.role === 'system' && msg.type === 'system') {
-              return (
-                <div key={idx} className='flex justify-center mb-6 mt-2'>
-                  <div className='flex items-center gap-2 bg-muted/60 text-muted-foreground border rounded-full px-4 py-1.5 text-xs'>
-                    <ArchiveRestore className='w-3.5 h-3.5' />
-                    <span>Conversation history has been summarized</span>
-                  </div>
-                </div>
-              );
-            }
-
-            if (msg.role === 'reasoning') {
-              return (
-                <div key={idx} className='flex justify-start mb-4 w-full'>
-                  <Accordion type='single' collapsible className='w-full max-w-[95%]'>
-                    <AccordionItem
-                      value={`reasoning-${idx}`}
-                      className='border rounded-md bg-muted/30 px-3 last:border-b'
-                    >
-                      <AccordionTrigger className='py-2 text-xs text-muted-foreground hover:no-underline'>
-                        <span className='flex items-center gap-2'>
-                          <Bot className='w-3 h-3' />
-                          Thinking Process
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className='text-xs text-muted-foreground whitespace-pre-wrap break-words font-mono'>
-                        {msg.content}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              );
-            }
-
-            if (msg.role === 'tool') {
-              return (
-                <div key={idx} className='flex justify-start mb-4 w-full'>
-                  <Accordion type='single' collapsible className='w-full max-w-[95%]'>
-                    <AccordionItem value={`tool-${idx}`} className='border rounded-md bg-muted/30 px-3 last:border-b'>
-                      <AccordionTrigger className='py-2 text-xs text-muted-foreground hover:no-underline'>
-                        <span className='flex items-center gap-2'>
-                          <Settings className='w-3 h-3' />
-                          {msg.type === 'tool_result' ? `Tool Result: ${msg.name}` : `Tool Use: ${msg.name}`}
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent className='text-xs text-muted-foreground whitespace-pre-wrap break-all font-mono'>
-                        {msg.content}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </div>
-              );
-            }
-
-            return (
-              <div key={idx} className='flex justify-start mb-4 w-full p-4'>
-                <div
-                  className={clsx(
-                    'text-sm w-full max-w-[95%]',
-                    msg.role === 'error'
-                      ? 'bg-destructive/10 text-destructive border border-destructive/20 rounded-md p-3 whitespace-pre-wrap'
-                      : 'text-foreground'
-                  )}
-                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                >
-                  {msg.role === 'error' ? msg.content : <MarkdownRenderer content={msg.content} />}
-                </div>
-              </div>
-            );
-          })}
-
-          {isLoading && (
-            <div className='flex justify-start mb-4 w-full'>
-              <div className='flex items-center gap-2 text-muted-foreground text-sm'>
-                <Loader2 className='w-4 h-4 animate-spin' />
-                Agent is thinking...
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* スクロールジャンプボタン */}
-        {(showScrollTop || showScrollBottom) && (
-          <div className='sticky bottom-2 ml-auto mr-0 w-fit flex flex-col gap-1.5 z-20'>
-            {showScrollTop && (
-              <Button
-                size='icon'
-                variant='secondary'
-                className='h-8 w-8 rounded-full shadow-md opacity-80 hover:opacity-100'
-                onClick={scrollToTop}
-                title='先頭へ'
-              >
-                <ChevronsUp className='w-4 h-4' />
-              </Button>
-            )}
-            {showScrollBottom && (
-              <Button
-                size='icon'
-                variant='secondary'
-                className='h-8 w-8 rounded-full shadow-md opacity-80 hover:opacity-100'
-                onClick={() => scrollToBottom(true)}
-                title='末尾へ'
-              >
-                <ChevronsDown className='w-4 h-4' />
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Input エリア（固定） */}
-      <div className='shrink-0 px-4 py-3 border-t bg-background z-10'>
-        <div className='flex flex-col rounded-xl border bg-background focus-within:ring-1 focus-within:ring-ring focus-within:border-primary shadow-sm transition-colors'>
-          <Textarea
-            ref={inputRef}
-            className='min-h-[36px] max-h-[120px] resize-none border-0 focus-visible:ring-0 shadow-none text-sm p-3 rounded-t-xl rounded-b-none'
-            placeholder='Type a message...'
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            rows={1}
-          />
-          <div className='flex justify-between items-center pl-4 pr-2 pb-2 pt-1 bg-transparent'>
-            <div className='flex items-center gap-2 text-muted-foreground'>
-              {tokenUsage && tokenUsage.totalTokens > 0 && (
-                <div className='group relative flex items-center gap-1 text-[11px] text-muted-foreground cursor-default'>
-                  <BarChart3 className='w-3 h-3' />
-                  <span>{tokenUsage.totalTokens.toLocaleString()} tokens</span>
-                  <div className='absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-30'>
-                    <div className='bg-popover text-popover-foreground border rounded-md px-3 py-2 text-[11px] shadow-md whitespace-nowrap'>
-                      <div className='flex flex-col gap-0.5'>
-                        <span>Input: {tokenUsage.inputTokens.toLocaleString()}</span>
-                        <span>Output: {tokenUsage.outputTokens.toLocaleString()}</span>
-                        <span className='text-muted-foreground/70 pt-0.5 border-t mt-0.5'>
-                          Current context window usage
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {isLoading ? (
-              <Button
-                size='icon'
-                onClick={abortGeneration}
-                variant='destructive'
-                className='h-8 w-8 rounded-full shrink-0'
-                title='Stop generation'
-              >
-                <Square className='w-3 h-3 fill-current' />
-              </Button>
-            ) : (
-              <Button size='icon' onClick={handleSend} disabled={isLoading} className='h-8 w-8 rounded-full shrink-0'>
-                <Send className='w-4 h-4' />
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ChatInputArea isLoading={isLoading} tokenUsage={tokenUsage} onSend={handleSend} onAbort={abortGeneration} />
 
       {/* Screenshot fullscreen modal */}
       {selectedImage && (

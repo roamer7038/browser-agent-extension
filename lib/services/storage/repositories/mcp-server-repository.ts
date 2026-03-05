@@ -1,16 +1,25 @@
 import { BaseStorage, StorageError } from '../core/base-storage';
 import { STORAGE_KEYS } from '../storage-keys';
-import type { McpServerConfig } from '@/lib/types/agent';
+import { McpServerConfigSchema, type McpServerConfig } from '@/lib/types/agent';
 import { CryptoService } from '../../crypto/crypto-service';
+import { z } from 'zod';
 
 export class McpServerRepository {
   static async getAll(): Promise<McpServerConfig[]> {
     try {
-      const servers = await BaseStorage.get<McpServerConfig[]>(STORAGE_KEYS.MCP_SERVERS);
-      if (!servers || servers.length === 0) {
+      const servers = await BaseStorage.get<unknown>(STORAGE_KEYS.MCP_SERVERS);
+      if (!servers) return [];
+
+      const parsed = z.array(McpServerConfigSchema).safeParse(servers);
+      if (!parsed.success) {
+        console.warn('Invalid MCP Servers found in storage', parsed.error);
         return [];
       }
-      return McpServerRepository.decryptHeaders(servers);
+
+      if (parsed.data.length === 0) {
+        return [];
+      }
+      return McpServerRepository.decryptHeaders(parsed.data);
     } catch (error) {
       throw new StorageError('Failed to get MCP servers', error);
     }

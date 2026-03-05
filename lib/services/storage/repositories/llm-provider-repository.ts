@@ -1,16 +1,23 @@
 import { BaseStorage, StorageError } from '../core/base-storage';
 import { STORAGE_KEYS } from '../storage-keys';
-import type { LlmProviderConfig } from '@/lib/types/agent';
+import { LlmProviderConfigSchema, type LlmProviderConfig } from '@/lib/types/agent';
 import { CryptoService } from '../../crypto/crypto-service';
+import { z } from 'zod';
 
 export class LlmProviderRepository {
   static async getAll(): Promise<LlmProviderConfig[]> {
     try {
-      const data = await BaseStorage.get<LlmProviderConfig[]>(STORAGE_KEYS.LLM_PROVIDERS);
+      const data = await BaseStorage.get<unknown>(STORAGE_KEYS.LLM_PROVIDERS);
       if (!data) return [];
 
+      const parsed = z.array(LlmProviderConfigSchema).safeParse(data);
+      if (!parsed.success) {
+        console.warn('Invalid LLM Providers found in storage', parsed.error);
+        return [];
+      }
+
       return Promise.all(
-        data.map(async (provider) => {
+        parsed.data.map(async (provider) => {
           if (provider.apiKey) {
             const decryptedKey = await CryptoService.decrypt(provider.apiKey);
             return { ...provider, apiKey: decryptedKey };

@@ -1,12 +1,20 @@
 import { BaseStorage, StorageError } from '../core/base-storage';
 import { STORAGE_KEYS } from '../storage-keys';
-import type { AgentSettingsConfig } from '@/lib/types/agent';
+import { AgentSettingsConfigSchema, type AgentSettingsConfig } from '@/lib/types/agent';
+import { z } from 'zod';
 
 export class AgentConfigRepository {
   static async getAll(): Promise<AgentSettingsConfig[]> {
     try {
-      const configs = await BaseStorage.get<AgentSettingsConfig[]>(STORAGE_KEYS.AGENT_CONFIGS);
-      return configs || [];
+      const configs = await BaseStorage.get<unknown>(STORAGE_KEYS.AGENT_CONFIGS);
+      if (!configs) return [];
+
+      const parsed = z.array(AgentSettingsConfigSchema).safeParse(configs);
+      if (!parsed.success) {
+        console.warn('Invalid Agent Configs found in storage, reverting to empty array', parsed.error);
+        return [];
+      }
+      return parsed.data;
     } catch (error) {
       throw new StorageError('Failed to get Agent Configs', error);
     }

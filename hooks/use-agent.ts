@@ -1,146 +1,20 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import type { Message, ThreadTokenUsage } from '@/lib/types/message';
-
-function parseMessages(rawMessages: Record<string, unknown>[]): Message[] {
-  return rawMessages.flatMap((m) => {
-    const msgs: Message[] = [];
-    const msgType =
-      (typeof m.getType === 'function' ? (m.getType as () => string)() : m.type) ||
-      (m.id?.toString().includes('AI') ? 'ai' : m.id?.toString().includes('Human') ? 'human' : null);
-
-    if (msgType === 'human') {
-      const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
-      if (additionalKwargs.lc_source === 'summarization') {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        msgs.push({ role: 'system', content, type: 'system' });
-      } else {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        msgs.push({ role: 'user', content, type: 'text' });
-      }
-    } else if (msgType === 'ai') {
-      const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
-      if (additionalKwargs.reasoning_content) {
-        msgs.push({ role: 'reasoning', content: additionalKwargs.reasoning_content as string, type: 'reasoning' });
-      }
-      if (m.tool_calls && (m.tool_calls as unknown[]).length > 0) {
-        (m.tool_calls as Record<string, unknown>[]).forEach((tc) => {
-          msgs.push({ role: 'tool', content: JSON.stringify(tc.args), name: tc.name as string, type: 'tool_call' });
-        });
-      }
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      if (content && content.trim() && content !== '""' && content !== '{}') {
-        const usageMetadata = m.usage_metadata as Message['usageMetadata'] | undefined;
-        msgs.push({ role: 'assistant', content, type: 'text', usageMetadata });
-      }
-    } else if (msgType === 'tool') {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      msgs.push({ role: 'tool', content, name: m.name as string, type: 'tool_result' });
-    } else if (msgType === 'system' || msgType === 'error') {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      msgs.push({ role: 'error', content, type: 'text' });
-    }
-    return msgs;
-  });
-}
-
-function getFinalMessages(response: Record<string, unknown>): Message[] {
-  if (!response.messages) return [];
-  const formattedMessages = parseMessages(response.messages as Record<string, unknown>[]);
-  const screenshots: string[] = (response.screenshots as string[]) ?? [];
-  const screenshotMessages: Message[] = screenshots.map((url) => ({
-    role: 'assistant',
-    content: url,
-    type: 'image'
-  }));
-  return [...formattedMessages, ...screenshotMessages];
-}
+import { useEffect, useRef } from 'react';
+import { useAgentStore } from '@/lib/store/agent-store';
 
 export function useAgent() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string>('');
-  const [tokenUsage, setTokenUsage] = useState<ThreadTokenUsage | null>(null);
+  const messages = useAgentStore((state) => state.messages);
+  const isLoading = useAgentStore((state) => state.isLoading);
+  const threadId = useAgentStore((state) => state.threadId);
+  const tokenUsage = useAgentStore((state) => state.tokenUsage);
 
-  // Issue 4: Prevent history fetch from overriding optimistic UI on new threads
+  const sendMessage = useAgentStore((state) => state.sendMessage);
+  const startNewThread = useAgentStore((state) => state.startNewThread);
+  const setThreadId = useAgentStore((state) => state.setThreadId);
+  const abortGeneration = useAgentStore((state) => state.abortGeneration);
+  const loadThreadHistory = useAgentStore((state) => state.loadThreadHistory);
+  const initializeLastActiveThread = useAgentStore((state) => state.initializeLastActiveThread);
+
   const skipHistoryFetchRef = useRef(false);
-
-  const setupStreamListener = useCallback((port: chrome.runtime.Port, baseMessages: Message[]) => {
-    let currentText = '';
-    let currentReasoning = '';
-    let accumulatedMessages: Message[] = [];
-
-    port.onMessage.addListener((msg) => {
-      if (msg.type === 'stream_start') {
-        if (msg.threadId) {
-          setThreadId(msg.threadId);
-        }
-      } else if (msg.type === 'stream_chunk') {
-        const { chunk } = msg;
-
-        if (chunk.content) {
-          currentText += chunk.content;
-        }
-        if (chunk.additional_kwargs?.reasoning_content) {
-          currentReasoning += chunk.additional_kwargs.reasoning_content;
-        }
-
-        const tail: Message[] = [];
-        if (currentReasoning) {
-          tail.push({ role: 'reasoning', content: currentReasoning, type: 'reasoning' });
-        }
-        if (currentText) {
-          tail.push({ role: 'assistant', content: currentText, type: 'text' });
-        }
-
-        setMessages([...baseMessages, ...accumulatedMessages, ...tail]);
-      } else if (msg.type === 'tool_start') {
-        if (currentReasoning) {
-          accumulatedMessages.push({ role: 'reasoning', content: currentReasoning, type: 'reasoning' });
-          currentReasoning = '';
-        }
-        if (currentText) {
-          accumulatedMessages.push({ role: 'assistant', content: currentText, type: 'text' });
-          currentText = '';
-        }
-
-        const toolCallInput = typeof msg.input === 'string' ? msg.input : JSON.stringify(msg.input);
-        accumulatedMessages.push({ role: 'tool', name: msg.name, content: toolCallInput, type: 'tool_call' });
-
-        setMessages([...baseMessages, ...accumulatedMessages]);
-      } else if (msg.type === 'tool_end') {
-        const toolResultOutput = typeof msg.output === 'string' ? msg.output : JSON.stringify(msg.output);
-        accumulatedMessages.push({ role: 'tool', name: msg.name, content: toolResultOutput, type: 'tool_result' });
-
-        setMessages([...baseMessages, ...accumulatedMessages]);
-      } else if (msg.type === 'stream_abort') {
-        setIsLoading(false);
-        port.disconnect();
-      } else if (msg.type === 'stream_end') {
-        if (msg.response.messages) {
-          setMessages(getFinalMessages(msg.response));
-        } else {
-          setMessages((prev) => [...prev, { role: 'assistant', content: msg.response.response || '', type: 'text' }]);
-        }
-        if (msg.response.totalUsage) {
-          setTokenUsage(msg.response.totalUsage);
-        }
-        if (msg.response.threadId) {
-          setThreadId(msg.response.threadId);
-        }
-        setIsLoading(false);
-        port.disconnect();
-      } else if (msg.type === 'error') {
-        setMessages([...baseMessages, { role: 'error', content: msg.error, type: 'text' }]);
-        setIsLoading(false);
-        port.disconnect();
-      }
-    });
-
-    port.onDisconnect.addListener(() => {
-      setIsLoading(false);
-    });
-  }, []);
 
   // Load message history when threadId changes
   useEffect(() => {
@@ -149,94 +23,26 @@ export function useAgent() {
         skipHistoryFetchRef.current = false;
         return;
       }
-
-      const port = chrome.runtime.connect({ name: 'chat_stream' });
-
-      const onReconnectResponse = (msg: any) => {
-        if (msg.type === 'stream_reconnected') {
-          setIsLoading(true);
-          // Stream is active, we just need to get the old context and attach stream listener to new base msg
-          chrome.runtime.sendMessage({ type: 'get_thread_history', threadId }).then((response) => {
-            const historicalMsgs = getFinalMessages(response);
-            setMessages(historicalMsgs);
-            if (response.totalUsage) setTokenUsage(response.totalUsage);
-
-            port.onMessage.removeListener(onReconnectResponse);
-            setupStreamListener(port, historicalMsgs);
-          });
-        } else if (msg.type === 'stream_not_found') {
-          port.disconnect();
-          // Normal history load
-          chrome.runtime.sendMessage({ type: 'get_thread_history', threadId }).then((response) => {
-            setMessages(getFinalMessages(response));
-            if (response.totalUsage) setTokenUsage(response.totalUsage);
-          });
-        }
-      };
-
-      port.onMessage.addListener(onReconnectResponse);
-      port.postMessage({ type: 'reconnect_stream', threadId });
+      loadThreadHistory(threadId);
     } else {
-      setMessages([]);
-      setTokenUsage(null);
+      useAgentStore.setState({ messages: [], tokenUsage: null });
     }
-  }, [threadId]); // Removed setupStreamListener to prevent dependency cycles
+  }, [threadId, loadThreadHistory]);
 
   // Initial load of last active thread
   useEffect(() => {
-    chrome.storage.local.get(['lastActiveThreadId']).then((data) => {
-      if (data.lastActiveThreadId) {
-        setThreadId(data.lastActiveThreadId as string);
-      }
-    });
-  }, []);
+    initializeLastActiveThread();
+  }, [initializeLastActiveThread]);
 
-  const sendMessage = useCallback(
-    async (content: string) => {
-      setIsLoading(true);
-      skipHistoryFetchRef.current = true; // prevent re-fetch and clearing user text
-
-      try {
-        const port = chrome.runtime.connect({ name: 'chat_stream' });
-
-        const userMessage: Message = { role: 'user', content, type: 'text' };
-        const newBaseMessages = [...messages, userMessage];
-        setMessages(newBaseMessages);
-
-        port.postMessage({
-          type: 'chat_message',
-          message: { role: 'user', content },
-          threadId
-        });
-
-        setupStreamListener(port, newBaseMessages);
-      } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
-        setMessages([...messages, { role: 'error', content: errorMsg, type: 'text' }]);
-        setIsLoading(false);
-      }
-    },
-    [messages, threadId, setupStreamListener]
-  );
-
-  const startNewThread = useCallback(() => {
-    setThreadId('');
-    setMessages([]);
-    setTokenUsage(null);
-    chrome.storage.local.remove('lastActiveThreadId');
-  }, []);
-
-  const abortGeneration = useCallback(() => {
-    if (threadId && isLoading) {
-      chrome.runtime.sendMessage({ type: 'cancel_generation', threadId });
-      setIsLoading(false);
-    }
-  }, [threadId, isLoading]);
+  const handleSendMessage = (content: string) => {
+    skipHistoryFetchRef.current = true;
+    return sendMessage(content);
+  };
 
   return {
     messages,
     isLoading,
-    sendMessage,
+    sendMessage: handleSendMessage,
     startNewThread,
     setThreadId,
     tokenUsage,
