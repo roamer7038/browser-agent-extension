@@ -2,8 +2,15 @@ import { BaseStorage, StorageError } from '../core/base-storage';
 import { STORAGE_KEYS } from '../storage-keys';
 import { McpServerConfigSchema, type McpServerConfig } from '@/lib/types/agent';
 import { CryptoService } from '../../crypto/crypto-service';
-import { z } from 'zod';
 import type { IMcpServerRepository } from '../interfaces';
+import { BaseGenericRepository } from '../core/generic-repository';
+
+const baseRepo = new BaseGenericRepository<McpServerConfig>(
+  STORAGE_KEYS.MCP_SERVERS,
+  McpServerConfigSchema,
+  'MCP Server',
+  'id'
+);
 
 async function encryptHeaders(servers: McpServerConfig[]): Promise<McpServerConfig[]> {
   return Promise.all(
@@ -46,19 +53,9 @@ async function decryptHeaders(servers: McpServerConfig[]): Promise<McpServerConf
 export const McpServerRepository: IMcpServerRepository = {
   getAll: async (): Promise<McpServerConfig[]> => {
     try {
-      const servers = await BaseStorage.get<unknown>(STORAGE_KEYS.MCP_SERVERS);
-      if (!servers) return [];
-
-      const parsed = z.array(McpServerConfigSchema).safeParse(servers);
-      if (!parsed.success) {
-        console.warn('Invalid MCP Servers found in storage', parsed.error);
-        return [];
-      }
-
-      if (parsed.data.length === 0) {
-        return [];
-      }
-      return decryptHeaders(parsed.data);
+      const servers = await baseRepo.getAll();
+      if (servers.length === 0) return [];
+      return await decryptHeaders(servers);
     } catch (error) {
       throw new StorageError('Failed to get MCP servers', error);
     }
@@ -67,7 +64,7 @@ export const McpServerRepository: IMcpServerRepository = {
   saveAll: async (servers: McpServerConfig[]): Promise<void> => {
     try {
       const serversWithEncryptedHeaders = await encryptHeaders(servers);
-      await BaseStorage.set(STORAGE_KEYS.MCP_SERVERS, serversWithEncryptedHeaders);
+      await baseRepo.saveAll(serversWithEncryptedHeaders);
     } catch (error) {
       throw new StorageError('Failed to save MCP servers', error);
     }

@@ -6,11 +6,13 @@ import { AgentConfigRepository } from '@/lib/services/storage/repositories/agent
 import { LlmProviderRepository } from '@/lib/services/storage/repositories/llm-provider-repository';
 import { STORAGE_KEYS } from '@/lib/services/storage/storage-keys';
 import { CryptoService } from '@/lib/services/crypto/crypto-service';
-import { handleChatMessage, activeStreams } from './handlers/chat-handler';
+import { handleChatMessage } from './handlers/chat-handler';
 import { handleGetThreads, handleGetThreadHistory, handleDeleteThread } from './handlers/thread-handler';
 import { handleTestMcpConnection, handleFetchMcpTools } from './handlers/mcp-handler';
 import { handleFetchModels, handleClearModelCache } from './handlers/model-handler';
 import type { AgentExecutorType } from '@/lib/types/agent';
+import { onMessage } from '@/lib/messaging';
+import { streamManager } from '@/lib/agent/stream-manager';
 
 export default defineBackground(() => {
   // アイコンクリック時にサイドパネルを自動で開く
@@ -45,6 +47,16 @@ export default defineBackground(() => {
         }
       }
     }
+  };
+
+  const ensureAgentInitialized = async () => {
+    if (!agentExecutor) {
+      await initAgent();
+      if (!agentExecutor) {
+        throw new Error('Agent not initialized. Please set API Key.');
+      }
+    }
+    return agentExecutor;
   };
 
   chrome.runtime.onInstalled.addListener(async () => {
@@ -83,133 +95,95 @@ export default defineBackground(() => {
     }
   });
 
-  // Handle messages from Side Panel
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    (async () => {
-      try {
-        // Ensure agent is initialized
-        if (!agentExecutor) {
-          await initAgent();
-          if (!agentExecutor) {
-            sendResponse({ error: 'Agent not initialized. Please set API Key.' });
-            return;
-          }
-        }
+  // ---------------------------------------------------------------------------
+  // Message Handlers via @webext-core/messaging
+  // ---------------------------------------------------------------------------
 
-        // Route to appropriate handler
-        switch (request.type) {
-          case 'chat_message': {
-            const result = await handleChatMessage(request, agentExecutor);
-            sendResponse(result);
-            break;
-          }
+  onMessage('chat_message', async (message) => {
+    const executor = await ensureAgentInitialized();
+    return await handleChatMessage(message.data, executor);
+  });
 
-          case 'get_threads': {
-            const result = await handleGetThreads();
-            sendResponse(result);
-            break;
-          }
+  onMessage('get_threads', async () => {
+    const result = await handleGetThreads();
+    return result.threads;
+  });
 
-          case 'get_thread_history': {
-            const result = await handleGetThreadHistory(request.threadId, agentExecutor);
-            sendResponse(result);
-            break;
-          }
+  onMessage('get_thread_history', async (message) => {
+    const executor = await ensureAgentInitialized();
+    return await handleGetThreadHistory(message.data, executor);
+  });
 
-          case 'delete_thread': {
-            const result = await handleDeleteThread(request.threadId);
-            sendResponse(result);
-            break;
-          }
+  onMessage('delete_thread', async (message) => {
+    const result = await handleDeleteThread(message.data);
+    if (!result.success) throw new Error('Failed to delete thread');
+  });
 
-          case 'cancel_generation': {
-            const streamState = activeStreams.get(request.threadId);
-            if (streamState) {
-              streamState.abortController.abort();
-              sendResponse({ success: true });
-            } else {
-              sendResponse({ error: 'Stream not found' });
-            }
-            break;
-          }
+  onMessage('cancel_generation', async (message) => {
+    const success = streamManager.abortStream(message.data);
+    if (success) {
+      return { success: true };
+    }
+    return { error: 'Stream not found' };
+  });
 
-          case 'test_mcp_connection': {
-            const result = await handleTestMcpConnection(request.server);
-            sendResponse(result);
-            break;
-          }
+  onMessage('test_mcp_connection', async (message) => {
+    return await handleTestMcpConnection(message.data);
+  });
 
-          case 'fetch_models': {
-            const agentConfig = await AgentConfigRepository.getActiveConfig();
-            if (!agentConfig?.providerId) {
-              sendResponse({ error: 'No LLM Provider selected in Agent Settings' });
-              return;
-            }
-            // Get LLM providers from storage
-            const providers = await LlmProviderRepository.getAll();
-            const provider = providers.find((p) => p.id === agentConfig.providerId);
-            if (!provider) {
-              sendResponse({ error: 'Selected LLM Provider not found' });
-              return;
-            }
-
-            // Pass provider to handler
-            const result = await handleFetchModels(provider);
-            sendResponse(result);
-            break;
-          }
-
-          case 'clear_model_cache': {
-            const result = await handleClearModelCache();
-            sendResponse(result);
-            break;
-          }
-
-          case 'fetch_mcp_tools': {
-            const result = await handleFetchMcpTools(request.serverId);
-            sendResponse(result);
-            break;
-          }
-
-          default:
-            sendResponse({ error: `Unknown message type: ${request.type}` });
-        }
-      } catch (error: any) {
-        console.error('Background message handler error:', error);
-        sendResponse({ error: error.message || 'Internal error' });
+  onMessage('fetch_models', async (message) => {
+    let provider = message.data;
+    if (!provider) {
+      const agentConfig = await AgentConfigRepository.getActiveConfig();
+      if (!agentConfig?.providerId) {
+        return { error: 'No LLM Provider selected in Agent Settings' };
       }
-    })();
-    return true; // Keep channel open for async response
+      const providers = await LlmProviderRepository.getAll();
+      const storedProvider = providers.find((p) => p.id === agentConfig.providerId);
+      if (!storedProvider) {
+        return { error: 'Selected LLM Provider not found' };
+      }
+      provider = storedProvider;
+    }
+    try {
+      const result = await handleFetchModels(provider);
+      return { models: result.models };
+    } catch (e: any) {
+      return { error: e.message || 'Error fetching models' };
+    }
+  });
+
+  onMessage('clear_model_cache', async () => {
+    await handleClearModelCache();
+    return { success: true };
+  });
+
+  onMessage('fetch_mcp_tools', async (message) => {
+    try {
+      const result = await handleFetchMcpTools(message.data);
+      return { tools: result.tools };
+    } catch (e: any) {
+      return { error: e.message || 'Error fetching MCP tools' };
+    }
   });
 
   // Handle long-lived connections for streaming
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name === 'chat_stream') {
       port.onDisconnect.addListener(() => {
-        for (const [key, state] of activeStreams.entries()) {
-          if (state.port === port) {
-            state.port = null;
-          }
-        }
+        streamManager.clearDisconnectedPort(port);
       });
 
       port.onMessage.addListener(async (request) => {
         try {
-          // Ensure agent is initialized
-          if (!agentExecutor) {
-            await initAgent();
-            if (!agentExecutor) {
-              port.postMessage({ type: 'error', error: 'Agent not initialized. Please set API Key.' });
-              return;
-            }
-          }
+          const executor = await ensureAgentInitialized();
 
           if (request.type === 'chat_message') {
-            await handleChatMessage(request, agentExecutor, port);
+            await handleChatMessage(request, executor, port);
           } else if (request.type === 'reconnect_stream') {
-            const streamState = activeStreams.get(request.threadId);
+            const streamState = streamManager.getStream(request.threadId);
             if (streamState) {
-              streamState.port = port;
+              streamManager.updatePort(request.threadId, port);
               port.postMessage({ type: 'stream_reconnected' });
             } else {
               port.postMessage({ type: 'stream_not_found' });

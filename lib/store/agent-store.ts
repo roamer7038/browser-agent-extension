@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Message, ThreadTokenUsage } from '@/lib/types/message';
-import { getFinalMessages, parseMessages } from '../utils/message-parser';
-import { v4 as uuidv4 } from 'uuid';
+import { getFinalMessages } from '../utils/message-parser';
+import { sendMessage } from '../messaging';
 
 interface AgentState {
   messages: Message[];
@@ -17,14 +17,19 @@ interface AgentState {
   setTokenUsage: (tokenUsage: ThreadTokenUsage | null) => void;
   setActivePort: (port: chrome.runtime.Port | null) => void;
 
-  // Thunks / Complex Actions
-  setupStreamListener: (port: chrome.runtime.Port, baseMessages: Message[]) => void;
-  sendMessage: (content: string) => Promise<void>;
+  // Thunks
+  appendUserMessage: (content: string) => Message[];
   startNewThread: () => void;
   switchThread: (newThreadId: string) => Promise<void>;
   abortGeneration: () => void;
   loadThreadHistory: (threadId: string) => Promise<void>;
   initializeLastActiveThread: () => Promise<void>;
+
+  // Streaming Actions
+  appendStreamChunk: (textChunk?: string, reasoningChunk?: string) => void;
+  appendToolCall: (name: string, input: string) => void;
+  appendToolResult: (name: string, output: string) => void;
+  finalizeStream: (finalMessages?: Message[]) => void;
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
@@ -43,113 +48,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setTokenUsage: (tokenUsage) => set({ tokenUsage }),
   setActivePort: (port) => set({ activePort: port }),
 
-  setupStreamListener: (port, baseMessages) => {
-    let currentText = '';
-    let currentReasoning = '';
-    let accumulatedMessages: Message[] = [];
-
-    const handleMessage = (msg: any) => {
-      const state = get();
-      if (msg.type === 'stream_start') {
-        if (msg.threadId) set({ threadId: msg.threadId });
-      } else if (msg.type === 'stream_chunk') {
-        const { chunk } = msg;
-
-        if (chunk.content) currentText += chunk.content;
-        if (chunk.additional_kwargs?.reasoning_content) {
-          currentReasoning += chunk.additional_kwargs.reasoning_content;
-        }
-
-        const tail: Message[] = [];
-        if (currentReasoning) {
-          tail.push({ role: 'reasoning', content: currentReasoning, type: 'reasoning' });
-        }
-        if (currentText) {
-          tail.push({ role: 'assistant', content: currentText, type: 'text' });
-        }
-
-        set({ messages: [...baseMessages, ...accumulatedMessages, ...tail] });
-      } else if (msg.type === 'tool_start') {
-        if (currentReasoning) {
-          accumulatedMessages.push({ role: 'reasoning', content: currentReasoning, type: 'reasoning' });
-          currentReasoning = '';
-        }
-        if (currentText) {
-          accumulatedMessages.push({ role: 'assistant', content: currentText, type: 'text' });
-          currentText = '';
-        }
-
-        const toolCallInput = typeof msg.input === 'string' ? msg.input : JSON.stringify(msg.input);
-        accumulatedMessages.push({ role: 'tool', name: msg.name, content: toolCallInput, type: 'tool_call' });
-
-        set({ messages: [...baseMessages, ...accumulatedMessages] });
-      } else if (msg.type === 'tool_end') {
-        const toolResultOutput = typeof msg.output === 'string' ? msg.output : JSON.stringify(msg.output);
-        accumulatedMessages.push({ role: 'tool', name: msg.name, content: toolResultOutput, type: 'tool_result' });
-
-        set({ messages: [...baseMessages, ...accumulatedMessages] });
-      } else if (msg.type === 'stream_abort') {
-        set({ isLoading: false });
-        port.disconnect();
-      } else if (msg.type === 'stream_end') {
-        if (msg.response.messages) {
-          set({ messages: getFinalMessages(msg.response) });
-        } else {
-          set({
-            messages: [
-              ...baseMessages,
-              ...accumulatedMessages,
-              { role: 'assistant', content: msg.response.response || '', type: 'text' }
-            ]
-          });
-        }
-        if (msg.response.totalUsage) set({ tokenUsage: msg.response.totalUsage });
-        if (msg.response.threadId) set({ threadId: msg.response.threadId });
-        set({ isLoading: false });
-        port.disconnect();
-      } else if (msg.type === 'error') {
-        set({
-          messages: [...baseMessages, ...accumulatedMessages, { role: 'error', content: msg.error, type: 'text' }],
-          isLoading: false
-        });
-        port.disconnect();
-      }
-    };
-
-    port.onMessage.addListener(handleMessage);
-
-    port.onDisconnect.addListener(() => {
-      set((state) => (state.activePort === port ? { activePort: null, isLoading: false } : {}));
-    });
-
-    set({ activePort: port });
-  },
-
-  sendMessage: async (content) => {
+  appendUserMessage: (content: string) => {
     const state = get();
-    set({ isLoading: true });
-
-    try {
-      const port = chrome.runtime.connect({ name: 'chat_stream' });
-      const userMessage: Message = { role: 'user', content, type: 'text' };
-      const newBaseMessages = [...state.messages, userMessage];
-
-      set({ messages: newBaseMessages });
-
-      port.postMessage({
-        type: 'chat_message',
-        message: { role: 'user', content },
-        threadId: state.threadId
-      });
-
-      state.setupStreamListener(port, newBaseMessages);
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
-      set({
-        messages: [...get().messages, { role: 'error', content: errorMsg, type: 'text' }],
-        isLoading: false
-      });
-    }
+    const userMessage: Message = { role: 'user', content, type: 'text' };
+    const newBaseMessages = [...state.messages, userMessage];
+    set({ messages: newBaseMessages, isLoading: true });
+    return newBaseMessages;
   },
 
   startNewThread: () => {
@@ -169,11 +73,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  abortGeneration: () => {
+  abortGeneration: async () => {
     const { threadId, isLoading } = get();
     if (threadId && isLoading) {
-      chrome.runtime.sendMessage({ type: 'cancel_generation', threadId });
-      set({ isLoading: false });
+      try {
+        await sendMessage('cancel_generation', threadId);
+        set({ isLoading: false });
+      } catch (error) {
+        console.error('Failed to cancel generation:', error);
+      }
     }
   },
 
@@ -188,9 +96,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (state.isLoading) return;
 
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'get_thread_history', threadId: targetThreadId });
+      const response = await sendMessage('get_thread_history', targetThreadId);
       set({
-        messages: getFinalMessages(response),
+        messages: getFinalMessages(response as unknown as Record<string, unknown>),
         tokenUsage: response.totalUsage || null
       });
     } catch (error) {
@@ -204,6 +112,57 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const id = data.lastActiveThreadId as string;
       set({ threadId: id });
       await get().loadThreadHistory(id);
+    }
+  },
+
+  appendStreamChunk: (textChunk = '', reasoningChunk = '') => {
+    set((state) => {
+      const messages = [...state.messages];
+      const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+
+      if (reasoningChunk) {
+        if (lastMsg && lastMsg.role === 'reasoning') {
+          // Append to existing reasoning block
+          messages[messages.length - 1] = { ...lastMsg, content: lastMsg.content + reasoningChunk };
+        } else {
+          // Create new reasoning block
+          messages.push({ role: 'reasoning', content: reasoningChunk, type: 'reasoning' });
+        }
+      }
+
+      if (textChunk) {
+        // We re-evaluate lastMsg here in case a new reasoning block was added
+        const currentLast = messages[messages.length - 1];
+        if (currentLast && currentLast.role === 'assistant' && currentLast.type === 'text') {
+          // Append to existing assistant text block
+          messages[messages.length - 1] = { ...currentLast, content: currentLast.content + textChunk };
+        } else {
+          // Create new assistant text block
+          messages.push({ role: 'assistant', content: textChunk, type: 'text' });
+        }
+      }
+
+      return { messages };
+    });
+  },
+
+  appendToolCall: (name: string, input: string) => {
+    set((state) => ({
+      messages: [...state.messages, { role: 'tool', name, content: input, type: 'tool_call' }]
+    }));
+  },
+
+  appendToolResult: (name: string, output: string) => {
+    set((state) => ({
+      messages: [...state.messages, { role: 'tool', name, content: output, type: 'tool_result' }]
+    }));
+  },
+
+  finalizeStream: (finalMessages?: Message[]) => {
+    if (finalMessages && finalMessages.length > 0) {
+      set({ messages: finalMessages, isLoading: false });
+    } else {
+      set({ isLoading: false });
     }
   }
 }));

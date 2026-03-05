@@ -25,6 +25,7 @@
     "@langchain/ollama": "^1.2.5",
     "@langchain/openai": "^1.2.8",
     "@tailwindcss/typography": "^0.5.19",
+    "@webext-core/messaging": "^2.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

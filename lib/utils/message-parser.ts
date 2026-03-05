@@ -1,55 +1,164 @@
+import { z } from 'zod';
 import type { Message } from '@/lib/types/message';
+
+// ---------------------------------------------------------------------------
+// Schemas for incoming raw messages
+// ---------------------------------------------------------------------------
+
+const BaseRawMessageSchema = z.object({
+  id: z.any().optional(),
+  type: z.string().optional(),
+  content: z.any(),
+  additional_kwargs: z.record(z.string(), z.any()).optional(),
+  name: z.string().optional()
+});
+
+const AiRawMessageSchema = BaseRawMessageSchema.extend({
+  tool_calls: z.array(z.record(z.string(), z.any())).optional(),
+  usage_metadata: z.record(z.string(), z.any()).optional()
+});
+
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
+function extractMessageType(m: any): string | null {
+  if (typeof m.getType === 'function') {
+    return m.getType();
+  }
+  if (m.type) {
+    return m.type;
+  }
+  const idStr = String(m.id || '');
+  if (idStr.includes('AI')) return 'ai';
+  if (idStr.includes('Human')) return 'human';
+  return null;
+}
+
+function parseContent(content: any): string {
+  if (typeof content === 'string') return content;
+  return JSON.stringify(content);
+}
+
+// ---------------------------------------------------------------------------
+// Message Handlers
+// ---------------------------------------------------------------------------
+
+function handleHumanMessage(m: any): Message[] {
+  const parsed = BaseRawMessageSchema.safeParse(m);
+  if (!parsed.success) return [];
+  const { content, additional_kwargs } = parsed.data;
+
+  const strContent = parseContent(content);
+  if (additional_kwargs?.lc_source === 'summarization') {
+    return [{ role: 'system', content: strContent, type: 'system' }];
+  }
+  return [{ role: 'user', content: strContent, type: 'text' }];
+}
+
+function handleAiMessage(m: any): Message[] {
+  const parsed = AiRawMessageSchema.safeParse(m);
+  if (!parsed.success) return [];
+  const { content, additional_kwargs, tool_calls, usage_metadata } = parsed.data;
+
+  const msgs: Message[] = [];
+
+  if (additional_kwargs?.reasoning_content) {
+    msgs.push({
+      role: 'reasoning',
+      content: String(additional_kwargs.reasoning_content),
+      type: 'reasoning'
+    });
+  }
+
+  if (tool_calls && tool_calls.length > 0) {
+    tool_calls.forEach((tc) => {
+      msgs.push({
+        role: 'tool',
+        content: JSON.stringify(tc.args || {}),
+        name: String(tc.name || ''),
+        type: 'tool_call'
+      });
+    });
+  }
+
+  const strContent = parseContent(content);
+  if (strContent && strContent.trim() && strContent !== '""' && strContent !== '{}') {
+    msgs.push({
+      role: 'assistant',
+      content: strContent,
+      type: 'text',
+      usageMetadata: usage_metadata as Message['usageMetadata']
+    });
+  }
+
+  return msgs;
+}
+
+function handleToolMessage(m: any): Message[] {
+  const parsed = BaseRawMessageSchema.safeParse(m);
+  if (!parsed.success) return [];
+  const { content, name } = parsed.data;
+
+  return [
+    {
+      role: 'tool',
+      content: parseContent(content),
+      name: String(name || ''),
+      type: 'tool_result'
+    }
+  ];
+}
+
+function handleSystemOrErrorMessage(m: any): Message[] {
+  const parsed = BaseRawMessageSchema.safeParse(m);
+  if (!parsed.success) return [];
+
+  return [
+    {
+      role: 'error',
+      content: parseContent(parsed.data.content),
+      type: 'text'
+    }
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Main Parsers
+// ---------------------------------------------------------------------------
 
 export function parseMessages(rawMessages: Record<string, unknown>[]): Message[] {
   return rawMessages.flatMap((m) => {
-    const msgs: Message[] = [];
-    const msgType =
-      (typeof m.getType === 'function' ? (m.getType as () => string)() : m.type) ||
-      (m.id?.toString().includes('AI') ? 'ai' : m.id?.toString().includes('Human') ? 'human' : null);
+    const msgType = extractMessageType(m);
 
-    if (msgType === 'human') {
-      const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
-      if (additionalKwargs.lc_source === 'summarization') {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        msgs.push({ role: 'system', content, type: 'system' });
-      } else {
-        const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-        msgs.push({ role: 'user', content, type: 'text' });
-      }
-    } else if (msgType === 'ai') {
-      const additionalKwargs = (m.additional_kwargs || {}) as Record<string, unknown>;
-      if (additionalKwargs.reasoning_content) {
-        msgs.push({ role: 'reasoning', content: additionalKwargs.reasoning_content as string, type: 'reasoning' });
-      }
-      if (m.tool_calls && (m.tool_calls as unknown[]).length > 0) {
-        (m.tool_calls as Record<string, unknown>[]).forEach((tc) => {
-          msgs.push({ role: 'tool', content: JSON.stringify(tc.args), name: tc.name as string, type: 'tool_call' });
-        });
-      }
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      if (content && content.trim() && content !== '""' && content !== '{}') {
-        const usageMetadata = m.usage_metadata as Message['usageMetadata'] | undefined;
-        msgs.push({ role: 'assistant', content, type: 'text', usageMetadata });
-      }
-    } else if (msgType === 'tool') {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      msgs.push({ role: 'tool', content, name: m.name as string, type: 'tool_result' });
-    } else if (msgType === 'system' || msgType === 'error') {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      msgs.push({ role: 'error', content, type: 'text' });
+    switch (msgType) {
+      case 'human':
+        return handleHumanMessage(m);
+      case 'ai':
+        return handleAiMessage(m);
+      case 'tool':
+        return handleToolMessage(m);
+      case 'system':
+      case 'error':
+        return handleSystemOrErrorMessage(m);
+      default:
+        // Unknown types are ignored or could be logged
+        return [];
     }
-    return msgs;
   });
 }
 
 export function getFinalMessages(response: Record<string, unknown>): Message[] {
-  if (!response.messages) return [];
+  if (!response || !Array.isArray(response.messages)) return [];
+
   const formattedMessages = parseMessages(response.messages as Record<string, unknown>[]);
-  const screenshots: string[] = (response.screenshots as string[]) ?? [];
+  const screenshots: string[] = Array.isArray(response.screenshots) ? response.screenshots : [];
+
   const screenshotMessages: Message[] = screenshots.map((url) => ({
     role: 'assistant',
-    content: url,
+    content: String(url),
     type: 'image'
   }));
+
   return [...formattedMessages, ...screenshotMessages];
 }
