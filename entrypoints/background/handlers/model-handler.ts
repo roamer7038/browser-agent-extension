@@ -1,8 +1,12 @@
 // entrypoints/background/handlers/model-handler.ts
 /// <reference types="chrome"/>
 import { clearModelCache } from '@/lib/agent/model-cache';
-import type { FetchModelsResponse } from '@/lib/services/message/message-types';
 import type { LlmProviderConfig } from '@/lib/types/agent';
+
+/** Response shape for model list fetching */
+interface FetchModelsResponse {
+  models: string[];
+}
 
 /** Ollama model response shape */
 interface OllamaModel {
