@@ -9,6 +9,20 @@ import {
   ChannelVersions,
   PendingWrite
 } from '@langchain/langgraph-checkpoint';
+import type { Thread } from '@/lib/types/message';
+
+/** Stored checkpoint data shape */
+interface StoredCheckpointData {
+  checkpoint: Checkpoint;
+  metadata: CheckpointMetadata;
+  parentConfig: RunnableConfig;
+  pendingWrites?: PendingWrite[];
+}
+
+/** Raw message from checkpoint channel values */
+interface CheckpointMessage {
+  content: string | Array<{ text?: string }>;
+}
 
 export class ChromeStorageCheckpointer extends BaseCheckpointSaver {
   constructor() {
@@ -21,7 +35,7 @@ export class ChromeStorageCheckpointer extends BaseCheckpointSaver {
 
     const key = `checkpoint:${threadId}`;
     const result = await chrome.storage.local.get(key);
-    const stored = result[key] as any;
+    const stored = result[key] as StoredCheckpointData | undefined;
 
     if (!stored) return undefined;
 
@@ -29,8 +43,7 @@ export class ChromeStorageCheckpointer extends BaseCheckpointSaver {
       config,
       checkpoint: stored.checkpoint,
       metadata: stored.metadata,
-      parentConfig: stored.parentConfig,
-      pendingWrites: stored.pendingWrites
+      parentConfig: stored.parentConfig
     };
   }
 
@@ -56,14 +69,12 @@ export class ChromeStorageCheckpointer extends BaseCheckpointSaver {
     }
 
     const key = `checkpoint:${threadId}`;
-    await chrome.storage.local.set({
-      [key]: {
-        checkpoint,
-        metadata,
-        parentConfig: config // Store parent config to restore context
-        // New versions are implicitly part of checkpoint
-      }
-    });
+    const data: StoredCheckpointData = {
+      checkpoint,
+      metadata,
+      parentConfig: config
+    };
+    await chrome.storage.local.set({ [key]: data });
 
     return {
       configurable: {
@@ -83,37 +94,30 @@ export class ChromeStorageCheckpointer extends BaseCheckpointSaver {
     await chrome.storage.local.remove(key);
   }
 
-  async getAllThreads(): Promise<{ id: string; updatedAt: number; preview: string }[]> {
+  async getAllThreads(): Promise<Thread[]> {
     const allData = await chrome.storage.local.get(null);
-    const threads: { id: string; updatedAt: number; preview: string }[] = [];
+    const threads: Thread[] = [];
 
     for (const [key, value] of Object.entries(allData)) {
       if (key.startsWith('checkpoint:')) {
         const threadId = key.replace('checkpoint:', '');
-        const data = value as any;
-        // Try to get the last message preview and timestamp
-        // This depends on how the checkpoint stores state.
-        // We'll try to extract it from the checkpoint data if possible,
-        // or just use a default.
-        // LangGraph snapshots usually have .ts (timestamp)
+        const data = value as StoredCheckpointData;
 
         let preview = 'No messages';
-        // Attempt to find the last human or ai message in the checkpoint state
-        // This is a simplification; actual state structure depends strictly on the graph definition.
-        // Assuming 'messages' key in state.
-        const messages = data.checkpoint?.channel_values?.messages;
+        const checkpointValues = data.checkpoint as unknown as Record<string, Record<string, unknown>>;
+        const messages = checkpointValues?.channel_values?.messages as CheckpointMessage[] | undefined;
         if (Array.isArray(messages) && messages.length > 0) {
           const lastMsg = messages[messages.length - 1];
           if (typeof lastMsg.content === 'string') {
             preview = lastMsg.content;
           } else if (Array.isArray(lastMsg.content)) {
-            preview = lastMsg.content.map((c: any) => c.text || '').join('');
+            preview = lastMsg.content.map((c) => c.text || '').join('');
           }
         }
 
         threads.push({
           id: threadId,
-          updatedAt: data.checkpoint?.ts ? new Date(data.checkpoint.ts).getTime() : Date.now(),
+          updatedAt: data.checkpoint?.ts ? new Date(data.checkpoint.ts as string).getTime() : Date.now(),
           preview: preview.slice(0, 100) + (preview.length > 100 ? '...' : '')
         });
       }

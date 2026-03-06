@@ -25,7 +25,7 @@ export class SecureGenericRepository<T> extends BaseGenericRepository<T> {
     for (const field of this.fieldsToEncrypt) {
       const value = entity[field];
       if (typeof value === 'string' && value) {
-        encryptedEntity[field] = (await CryptoService.encrypt(value)) as any;
+        encryptedEntity[field] = (await CryptoService.encrypt(value)) as T[keyof T];
       }
     }
     return encryptedEntity;
@@ -39,7 +39,7 @@ export class SecureGenericRepository<T> extends BaseGenericRepository<T> {
     for (const field of this.fieldsToEncrypt) {
       const value = entity[field];
       if (typeof value === 'string' && value) {
-        decryptedEntity[field] = (await CryptoService.decrypt(value)) as any;
+        decryptedEntity[field] = (await CryptoService.decrypt(value)) as T[keyof T];
       }
     }
     return decryptedEntity;

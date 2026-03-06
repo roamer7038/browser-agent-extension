@@ -4,6 +4,16 @@ import { clearModelCache } from '@/lib/agent/model-cache';
 import type { FetchModelsResponse } from '@/lib/services/message/message-types';
 import type { LlmProviderConfig } from '@/lib/types/agent';
 
+/** Ollama model response shape */
+interface OllamaModel {
+  name: string;
+}
+
+/** OpenAI-compatible model response shape */
+interface OpenAIModel {
+  id: string;
+}
+
 export async function handleFetchModels(provider: LlmProviderConfig): Promise<FetchModelsResponse> {
   if (!provider.apiKey && provider.providerType !== 'ollama') {
     throw new Error('API Key is not configured for this provider');
@@ -26,7 +36,7 @@ export async function handleFetchModels(provider: LlmProviderConfig): Promise<Fe
       throw new Error('Invalid response format from Ollama API');
     }
     const models = data.models
-      .map((m: any) => m.name)
+      .map((m: OllamaModel) => m.name)
       .filter((name: string) => typeof name === 'string')
       .sort();
     return { models };
@@ -52,7 +62,7 @@ export async function handleFetchModels(provider: LlmProviderConfig): Promise<Fe
 
   // Extract model IDs and sort alphabetically
   const models = data.data
-    .map((m: any) => m.id)
+    .map((m: OpenAIModel) => m.id)
     .filter((id: string) => typeof id === 'string')
     .sort();
 

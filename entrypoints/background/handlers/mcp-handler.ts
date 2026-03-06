@@ -1,5 +1,5 @@
 // entrypoints/background/handlers/mcp-handler.ts
-import { testMcpConnection } from '@/lib/agent/tools/mcp';
+import { testMcpConnection, buildMcpConnectionEntry } from '@/lib/agent/tools/mcp';
 import { McpServerRepository } from '@/lib/services/storage/repositories/mcp-server-repository';
 import type { McpServerConfig, TestResult, McpToolInfo } from '@/lib/types/agent';
 import { MultiServerMCPClient } from '@langchain/mcp-adapters';
@@ -8,8 +8,9 @@ export async function handleTestMcpConnection(server: McpServerConfig): Promise<
   try {
     const result = await testMcpConnection(server);
     return result;
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -24,17 +25,7 @@ export async function handleFetchMcpTools(serverId: string): Promise<{ tools: Mc
     throw new Error(`MCP server not found: ${serverId}`);
   }
 
-  const entry: { transport?: 'http' | 'sse'; url: string; headers?: Record<string, string> } = {
-    url: server.url
-  };
-
-  if (server.transport === 'sse') {
-    entry.transport = 'sse';
-  }
-
-  if (Object.keys(server.headers).length > 0) {
-    entry.headers = server.headers;
-  }
+  const entry = buildMcpConnectionEntry(server);
 
   const client = new MultiServerMCPClient({
     throwOnLoadError: true,

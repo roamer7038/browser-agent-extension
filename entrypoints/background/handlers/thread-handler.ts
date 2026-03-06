@@ -4,7 +4,7 @@ import { ChromeStorageCheckpointer } from '@/lib/agent/checkpointer';
 import { ThreadRepository } from '@/lib/services/storage/repositories/thread-repository';
 import { ScreenshotRepository } from '@/lib/services/storage/repositories/screenshot-repository';
 import { mapRawMessages } from '@/lib/agent/message-mapper';
-import type { MappedMessage } from '@/lib/agent/message-mapper';
+import { getLatestTokenUsage } from '@/lib/agent/token-calculator';
 import type { Thread, ThreadHistory } from '@/lib/types/message';
 import type { AgentExecutorType } from '@/lib/types/agent';
 
@@ -26,18 +26,8 @@ export async function handleGetThreadHistory(
   const rawMessages = ((stateValues as Record<string, unknown>).messages || []) as unknown[];
   const messages = mapRawMessages(rawMessages);
 
-  // Extract token usage from the latest AI message
-  const totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-  const mappedMessages = messages as MappedMessage[];
-  for (let i = mappedMessages.length - 1; i >= 0; i--) {
-    const msg = mappedMessages[i];
-    if (msg.type === 'ai' && msg.usage_metadata) {
-      totalUsage.inputTokens = msg.usage_metadata.input_tokens;
-      totalUsage.outputTokens = msg.usage_metadata.output_tokens;
-      totalUsage.totalTokens = msg.usage_metadata.total_tokens;
-      break;
-    }
-  }
+  // Extract token usage using shared utility
+  const totalUsage = getLatestTokenUsage(messages);
 
   // Get screenshots for this thread
   const screenshots = await ScreenshotRepository.getForThread(threadId);

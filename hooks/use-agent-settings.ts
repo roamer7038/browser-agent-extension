@@ -6,6 +6,37 @@ import { DEFAULT_AGENT_ID } from '@/lib/types/agent';
 import { DEFAULT_SYSTEM_PROMPT } from '@/lib/agent/default-system-prompt';
 
 /**
+ * Generic toggle helper for array-based config fields.
+ * Extracts the common Set→add/delete→Array→save pattern.
+ */
+function toggleArrayField<K extends keyof AgentSettingsConfig>(
+  config: AgentSettingsConfig,
+  fieldName: K,
+  value: string,
+  enabled: boolean
+): AgentSettingsConfig {
+  const currentArray = (config[fieldName] as string[]) || [];
+  const set = new Set(currentArray);
+  if (enabled) {
+    set.add(value);
+  } else {
+    set.delete(value);
+  }
+  return { ...config, [fieldName]: Array.from(set) };
+}
+
+/**
+ * Persists config to storage, logging errors without throwing.
+ */
+async function persistConfig(config: AgentSettingsConfig): Promise<void> {
+  try {
+    await AgentConfigRepository.save(config);
+  } catch (err) {
+    console.error('[useAgentSettings] Failed to save config:', err);
+  }
+}
+
+/**
  * Hook for managing agent settings.
  * Accepts an optional `agentId` to manage a specific agent's config.
  * Defaults to the active agent (or 'default').
@@ -30,20 +61,20 @@ export function useAgentSettings(agentId?: string) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const loadConfig = useCallback(async () => {
-    let resolvedAgentId = agentId;
-    if (!resolvedAgentId) {
-      resolvedAgentId = (await AgentConfigRepository.getActiveId()) || DEFAULT_AGENT_ID;
-      await AgentConfigRepository.setActiveId(resolvedAgentId);
+    let targetAgentId = agentId;
+    if (!targetAgentId) {
+      targetAgentId = (await AgentConfigRepository.getActiveId()) || DEFAULT_AGENT_ID;
+      await AgentConfigRepository.setActiveId(targetAgentId);
     }
-    const savedConfig = await AgentConfigRepository.getById(resolvedAgentId);
+    const savedConfig = await AgentConfigRepository.getById(targetAgentId);
     if (savedConfig) {
       setConfig(savedConfig);
     } else {
       // Setup defaults if first time
       const defaultTools = getAllToolNames();
       const defaultConfig: AgentSettingsConfig = {
-        agentId: resolvedAgentId,
-        agentName: resolvedAgentId === DEFAULT_AGENT_ID ? 'Default Agent' : resolvedAgentId,
+        agentId: targetAgentId,
+        agentName: targetAgentId === DEFAULT_AGENT_ID ? 'Default Agent' : targetAgentId,
         providerId: '',
         modelName: '',
         enabledTools: defaultTools,
@@ -64,17 +95,14 @@ export function useAgentSettings(agentId?: string) {
     loadConfig();
   }, [loadConfig]);
 
+  /**
+   * Updates config fields and persists.
+   * Save is done OUTSIDE the setState callback to avoid side effects in React updates.
+   */
   const updateConfig = async (updates: Partial<AgentSettingsConfig>): Promise<void> => {
-    setConfig((prev) => {
-      const nextConfig = { ...prev, ...updates };
-      // React state update is synchronous within the functional update conceptually,
-      // but we should trigger the storage save outside or carefully.
-      // ensure consistency, we save the fully computed nextConfig.
-      AgentConfigRepository.save(nextConfig).catch((err) => {
-        console.error('[useAgentSettings] Failed to save config:', err);
-      });
-      return nextConfig;
-    });
+    const nextConfig = { ...config, ...updates };
+    setConfig(nextConfig);
+    await persistConfig(nextConfig);
   };
 
   const setProviderAndModel = (providerId: string, modelName: string): void => {
@@ -82,48 +110,22 @@ export function useAgentSettings(agentId?: string) {
   };
 
   const toggleTool = (toolName: string, enabled: boolean): void => {
-    setConfig((prev) => {
-      const toolSet = new Set(prev.enabledTools);
-      if (enabled) {
-        toolSet.add(toolName);
-      } else {
-        toolSet.delete(toolName);
-      }
-      const newTools = Array.from(toolSet);
-      const nextConfig = { ...prev, enabledTools: newTools };
-      AgentConfigRepository.save(nextConfig).catch(console.error);
-      return nextConfig;
-    });
+    const nextConfig = toggleArrayField(config, 'enabledTools', toolName, enabled);
+    setConfig(nextConfig);
+    persistConfig(nextConfig);
   };
 
   const toggleMcpServer = (serverId: string, enabled: boolean): void => {
-    setConfig((prev) => {
-      const serverSet = new Set(prev.enabledMcpServers);
-      if (enabled) {
-        serverSet.add(serverId);
-      } else {
-        serverSet.delete(serverId);
-      }
-      const newServers = Array.from(serverSet);
-      const nextConfig = { ...prev, enabledMcpServers: newServers };
-      AgentConfigRepository.save(nextConfig).catch(console.error);
-      return nextConfig;
-    });
+    const nextConfig = toggleArrayField(config, 'enabledMcpServers', serverId, enabled);
+    setConfig(nextConfig);
+    persistConfig(nextConfig);
   };
 
   const toggleMcpTool = (toolName: string, enabled: boolean): void => {
-    setConfig((prev) => {
-      const disabledSet = new Set(prev.disabledMcpTools || []);
-      if (enabled) {
-        disabledSet.delete(toolName);
-      } else {
-        disabledSet.add(toolName);
-      }
-      const newDisabled = Array.from(disabledSet);
-      const nextConfig = { ...prev, disabledMcpTools: newDisabled };
-      AgentConfigRepository.save(nextConfig).catch(console.error);
-      return nextConfig;
-    });
+    // disabledMcpTools uses inverted logic: enabled=true means REMOVE from disabled list
+    const nextConfig = toggleArrayField(config, 'disabledMcpTools', toolName, !enabled);
+    setConfig(nextConfig);
+    persistConfig(nextConfig);
   };
 
   const setSystemPrompt = (prompt: string): void => {
@@ -131,30 +133,16 @@ export function useAgentSettings(agentId?: string) {
   };
 
   const toggleMiddleware = (middlewareName: string, enabled: boolean): void => {
-    setConfig((prev) => {
-      const middlewareSet = new Set(prev.enabledMiddlewares || []);
-      if (enabled) {
-        middlewareSet.add(middlewareName);
-      } else {
-        middlewareSet.delete(middlewareName);
-      }
-      const newMiddlewares = Array.from(middlewareSet);
-      const nextConfig = { ...prev, enabledMiddlewares: newMiddlewares };
-      AgentConfigRepository.save(nextConfig).catch(console.error);
-      return nextConfig;
-    });
+    const nextConfig = toggleArrayField(config, 'enabledMiddlewares', middlewareName, enabled);
+    setConfig(nextConfig);
+    persistConfig(nextConfig);
   };
 
   const updateMiddlewareSettings = (settings: NonNullable<AgentSettingsConfig['middlewareSettings']>): void => {
-    setConfig((prev) => {
-      const newSettings = {
-        ...prev.middlewareSettings,
-        ...settings
-      };
-      const nextConfig = { ...prev, middlewareSettings: newSettings };
-      AgentConfigRepository.save(nextConfig).catch(console.error);
-      return nextConfig;
-    });
+    const newSettings = { ...config.middlewareSettings, ...settings };
+    const nextConfig = { ...config, middlewareSettings: newSettings };
+    setConfig(nextConfig);
+    persistConfig(nextConfig);
   };
 
   const setRecursionLimit = (value: number | undefined): void => {

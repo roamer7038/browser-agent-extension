@@ -148,7 +148,13 @@ export function parseMessages(rawMessages: Record<string, unknown>[]): Message[]
   });
 }
 
-export function getFinalMessages(response: Record<string, unknown>): Message[] {
+/** Input structure for getFinalMessages, compatible with StreamEndResponse and ThreadHistory */
+interface FinalMessagesInput {
+  messages: unknown[];
+  screenshots?: string[];
+}
+
+export function getFinalMessages(response: FinalMessagesInput): Message[] {
   if (!response || !Array.isArray(response.messages)) return [];
 
   const formattedMessages = parseMessages(response.messages as Record<string, unknown>[]);

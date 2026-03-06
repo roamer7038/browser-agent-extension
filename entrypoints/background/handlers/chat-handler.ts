@@ -3,6 +3,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SystemMessage } from '@langchain/core/messages';
 import type { ChatMessageResponse } from '@/lib/types/message';
+import type { StreamMessage } from '@/lib/types/stream';
 import { AgentConfigRepository } from '@/lib/services/storage/repositories/agent-config-repository';
 import { ThreadRepository } from '@/lib/services/storage/repositories/thread-repository';
 import { ScreenshotRepository } from '@/lib/services/storage/repositories/screenshot-repository';
@@ -14,18 +15,28 @@ import type { AgentExecutorType, ChatRequestMessage } from '@/lib/types/agent';
 
 const DEFAULT_RECURSION_LIMIT = 100;
 
+/** Thread configuration for LangGraph */
+interface ThreadConfig {
+  configurable: { thread_id: string };
+}
+
+/** Sends a typed stream message to the active port */
+function postStreamMessage(threadId: string, message: StreamMessage): void {
+  streamManager.getPort(threadId)?.postMessage(message);
+}
+
 async function processLangGraphStream(
-  message: any,
+  message: ChatRequestMessage['message'],
   actualThreadId: string,
-  config: any,
+  config: ThreadConfig,
   recursionLimit: number,
   agentExecutor: AgentExecutorType,
   port: chrome.runtime.Port
-) {
+): Promise<void> {
   const abortController = streamManager.createStream(actualThreadId, port);
   const getActivePort = () => streamManager.getPort(actualThreadId);
 
-  getActivePort()?.postMessage({ type: 'stream_start', threadId: actualThreadId });
+  postStreamMessage(actualThreadId, { type: 'stream_start', threadId: actualThreadId });
 
   try {
     const eventStream = await agentExecutor.streamEvents(
@@ -51,7 +62,7 @@ async function processLangGraphStream(
 
     const screenshots = await ScreenshotRepository.getForThread(actualThreadId);
 
-    getActivePort()?.postMessage({
+    postStreamMessage(actualThreadId, {
       type: 'stream_end',
       response: {
         response: messages.length > 0 ? messages[messages.length - 1].content : '',
@@ -62,13 +73,13 @@ async function processLangGraphStream(
       }
     });
   } catch (error: unknown) {
-    if ((error as any).name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       console.log('Stream aborted by user');
-      getActivePort()?.postMessage({ type: 'stream_abort' });
+      postStreamMessage(actualThreadId, { type: 'stream_abort' });
     } else {
       const errorMessage = (error instanceof Error ? error.message : String(error)) || 'Stream failed';
       console.error('Streaming error:', error);
-      getActivePort()?.postMessage({ type: 'error', error: errorMessage });
+      postStreamMessage(actualThreadId, { type: 'error', error: errorMessage });
       try {
         await agentExecutor.updateState(config, {
           messages: [new SystemMessage({ content: `[Error] ${errorMessage}` })]
@@ -83,9 +94,9 @@ async function processLangGraphStream(
 }
 
 async function processLegacyChat(
-  message: any,
+  message: ChatRequestMessage['message'],
   actualThreadId: string,
-  config: any,
+  config: ThreadConfig,
   recursionLimit: number,
   agentExecutor: AgentExecutorType
 ): Promise<ChatMessageResponse> {
@@ -119,7 +130,7 @@ export async function handleChatMessage(
   port?: chrome.runtime.Port
 ): Promise<ChatMessageResponse | void> {
   const { message, threadId } = request;
-  const config = { configurable: { thread_id: threadId || uuidv4() } };
+  const config: ThreadConfig = { configurable: { thread_id: threadId || uuidv4() } };
   const actualThreadId = String(config.configurable.thread_id);
 
   const agentSettings = await AgentConfigRepository.getActiveConfig();

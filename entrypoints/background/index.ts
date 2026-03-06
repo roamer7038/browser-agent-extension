@@ -11,6 +11,8 @@ import { handleGetThreads, handleGetThreadHistory, handleDeleteThread } from './
 import { handleTestMcpConnection, handleFetchMcpTools } from './handlers/mcp-handler';
 import { handleFetchModels, handleClearModelCache } from './handlers/model-handler';
 import type { AgentExecutorType } from '@/lib/types/agent';
+import type { LlmProviderType } from '@/lib/agent/llm/types';
+import type { StreamRequest, StreamMessage } from '@/lib/types/stream';
 import { onMessage } from '@/lib/messaging';
 import { streamManager } from '@/lib/agent/stream-manager';
 
@@ -21,7 +23,7 @@ export default defineBackground(() => {
   let agentExecutor: AgentExecutorType | null = null;
 
   // Initialize agent when config changes or on startup if config exists
-  const initAgent = async () => {
+  const initAgent = async (): Promise<void> => {
     const agentConfig = await AgentConfigRepository.getActiveConfig();
     const providers = await LlmProviderRepository.getAll();
 
@@ -36,7 +38,7 @@ export default defineBackground(() => {
             apiKey: provider.apiKey,
             baseUrl: provider.baseUrl,
             modelName: agentConfig.modelName,
-            providerType: provider.providerType,
+            providerType: provider.providerType as LlmProviderType,
             temperature: agentConfig.temperature,
             topP: agentConfig.topP
           });
@@ -49,7 +51,7 @@ export default defineBackground(() => {
     }
   };
 
-  const ensureAgentInitialized = async () => {
+  const ensureAgentInitialized = async (): Promise<AgentExecutorType> => {
     if (!agentExecutor) {
       await initAgent();
       if (!agentExecutor) {
@@ -148,8 +150,9 @@ export default defineBackground(() => {
     try {
       const result = await handleFetchModels(provider);
       return { models: result.models };
-    } catch (e: any) {
-      return { error: e.message || 'Error fetching models' };
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Error fetching models';
+      return { error: errorMessage };
     }
   });
 
@@ -162,8 +165,9 @@ export default defineBackground(() => {
     try {
       const result = await handleFetchMcpTools(message.data);
       return { tools: result.tools };
-    } catch (e: any) {
-      return { error: e.message || 'Error fetching MCP tools' };
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Error fetching MCP tools';
+      return { error: errorMessage };
     }
   });
 
@@ -174,7 +178,7 @@ export default defineBackground(() => {
         streamManager.clearDisconnectedPort(port);
       });
 
-      port.onMessage.addListener(async (request) => {
+      port.onMessage.addListener(async (request: StreamRequest) => {
         try {
           const executor = await ensureAgentInitialized();
 
@@ -184,14 +188,18 @@ export default defineBackground(() => {
             const streamState = streamManager.getStream(request.threadId);
             if (streamState) {
               streamManager.updatePort(request.threadId, port);
-              port.postMessage({ type: 'stream_reconnected' });
+              const msg: StreamMessage = { type: 'stream_reconnected' };
+              port.postMessage(msg);
             } else {
-              port.postMessage({ type: 'stream_not_found' });
+              const msg: StreamMessage = { type: 'stream_not_found' };
+              port.postMessage(msg);
             }
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Port message handler error:', error);
-          port.postMessage({ type: 'error', error: error.message || 'Internal error' });
+          const errorMessage = error instanceof Error ? error.message : 'Internal error';
+          const msg: StreamMessage = { type: 'error', error: errorMessage };
+          port.postMessage(msg);
         }
       });
     }

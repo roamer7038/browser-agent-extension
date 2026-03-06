@@ -21,7 +21,7 @@ export class BaseStorage {
     }
   }
 
-  static async set(key: string, value: any): Promise<void> {
+  static async set<T>(key: string, value: T): Promise<void> {
     try {
       await chrome.storage.local.set({ [key]: value });
     } catch (error) {

@@ -1,5 +1,8 @@
+/** Supported LLM provider types */
+export type LlmProviderType = 'openai' | 'openai-compatible' | 'ollama' | 'anthropic' | 'google';
+
 export interface LLMConfig {
-  provider: 'openai' | 'openai-compatible' | 'ollama' | 'anthropic' | 'google' | string;
+  provider: LlmProviderType;
   apiKey: string;
   modelName?: string;
   baseUrl?: string;

@@ -1,9 +1,9 @@
 // lib/services/message/message-types.ts
-import type { McpServerConfig, TestResult, McpToolInfo } from '@/lib/types/agent';
+import type { McpServerConfig, TestResult, McpToolInfo, ChatRequestMessage } from '@/lib/types/agent';
 import type { Thread, ThreadHistory, ChatMessageResponse } from '@/lib/types/message';
 
 export type MessageRequest =
-  | { type: 'chat_message'; message: any; threadId?: string }
+  | { type: 'chat_message'; message: ChatRequestMessage['message']; threadId?: string }
   | { type: 'get_threads' }
   | { type: 'get_thread_history'; threadId: string }
   | { type: 'delete_thread'; threadId: string }
@@ -12,7 +12,7 @@ export type MessageRequest =
   | { type: 'clear_model_cache' }
   | { type: 'fetch_mcp_tools'; serverId: string };
 
-export type MessageResponse<T = any> = { error: string } | (T extends void ? { success: true } : T);
+export type MessageResponse<T = unknown> = { error: string } | (T extends void ? { success: true } : T);
 
 // Extract specific request types
 export type ChatMessageRequest = Extract<MessageRequest, { type: 'chat_message' }>;

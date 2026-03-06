@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { McpServerRepository } from '@/lib/services/storage/repositories/mcp-server-repository';
-import { MessageBus } from '@/lib/services/message/message-bus';
+import { sendMessage } from '@/lib/messaging';
 import type { McpServerConfig, TestResult } from '@/lib/types/agent';
 
 export function useMcpServers() {
@@ -55,7 +55,7 @@ export function useMcpServers() {
     });
 
     try {
-      const result = await MessageBus.testMcpConnection(server);
+      const result = await sendMessage('test_mcp_connection', server);
       setTestResults((prev) => ({
         ...prev,
         [server.id]: result

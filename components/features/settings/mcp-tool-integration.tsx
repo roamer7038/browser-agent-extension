@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Server, Loader2 } from 'lucide-react';
 import type { McpServerConfig, McpToolInfo } from '@/lib/types/agent';
-import { MessageBus } from '@/lib/services/message/message-bus';
+import { sendMessage } from '@/lib/messaging';
 
 interface McpToolIntegrationProps {
   mcpServers: McpServerConfig[];
@@ -33,7 +33,11 @@ export function McpToolIntegration({
       if (toolsByServer[serverId] || toolsLoading[serverId]) return;
       setToolsLoading((prev) => ({ ...prev, [serverId]: true }));
       try {
-        const tools = await MessageBus.fetchMcpTools(serverId);
+        const response = await sendMessage('fetch_mcp_tools', serverId);
+        if ('error' in response && response.error) {
+          throw new Error(response.error);
+        }
+        const tools = ('tools' in response && response.tools) || [];
         setToolsByServer((prev) => ({ ...prev, [serverId]: tools }));
       } catch (error) {
         console.error(`Failed to fetch MCP tools for server ${serverId}:`, error);

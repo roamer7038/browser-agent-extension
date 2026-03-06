@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AgentConfigRepository } from '@/lib/services/storage/repositories/agent-config-repository';
 import { LlmProviderRepository } from '@/lib/services/storage/repositories/llm-provider-repository';
-import { MessageBus } from '@/lib/services/message/message-bus';
+import { sendMessage } from '@/lib/messaging';
 import { getCachedModels, saveCacheWithMeta } from '@/lib/agent/model-cache';
 
 export function useModelSelection(providerId?: string) {
@@ -48,13 +48,18 @@ export function useModelSelection(providerId?: string) {
         // APIから取得 (background script now handles the provider fetching natively from storage,
         // but since we updated it to receive the provider by parameter, we need to pass it or change messagebus API.
         // Wait, we updated background.js to fetch the Provider by getting AgentConfig directly.
-        const models = await MessageBus.fetchModels();
+        const response = await sendMessage('fetch_models', undefined);
+        if ('error' in response && response.error) {
+          throw new Error(response.error);
+        }
+        const models = ('models' in response && response.models) || [];
 
         // キャッシュに保存
         await saveCacheWithMeta(models, activeProvider.apiKey, activeProvider.baseUrl || '');
         setAvailableModels(models);
-      } catch (error: any) {
-        toast.error(`モデルリストの取得に失敗しました: ${error.message}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`モデルリストの取得に失敗しました: ${errorMessage}`);
         setAvailableModels([]);
       } finally {
         setModelsLoading(false);
@@ -68,7 +73,7 @@ export function useModelSelection(providerId?: string) {
   }, [fetchModels]);
 
   const handleRefreshModels = useCallback(async () => {
-    await MessageBus.clearModelCache();
+    await sendMessage('clear_model_cache', undefined);
     await fetchModels(true);
   }, [fetchModels]);
 

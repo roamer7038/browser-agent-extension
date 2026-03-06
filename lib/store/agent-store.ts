@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Message, ThreadTokenUsage } from '@/lib/types/message';
 import { getFinalMessages } from '../utils/message-parser';
 import { sendMessage } from '../messaging';
+import { ThreadRepository } from '../services/storage/repositories/thread-repository';
 
 interface AgentState {
   messages: Message[];
@@ -58,7 +59,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   startNewThread: () => {
     set({ threadId: '', messages: [], tokenUsage: null });
-    chrome.storage.local.remove('lastActiveThreadId');
+    ThreadRepository.removeLastActiveId();
   },
 
   switchThread: async (newThreadId: string) => {
@@ -98,7 +99,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       const response = await sendMessage('get_thread_history', targetThreadId);
       set({
-        messages: getFinalMessages(response as unknown as Record<string, unknown>),
+        messages: getFinalMessages(response),
         tokenUsage: response.totalUsage || null
       });
     } catch (error) {
@@ -107,11 +108,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   initializeLastActiveThread: async () => {
-    const data = await chrome.storage.local.get(['lastActiveThreadId']);
-    if (data.lastActiveThreadId) {
-      const id = data.lastActiveThreadId as string;
-      set({ threadId: id });
-      await get().loadThreadHistory(id);
+    const lastActiveThreadId = await ThreadRepository.getLastActiveId();
+    if (lastActiveThreadId) {
+      set({ threadId: lastActiveThreadId });
+      await get().loadThreadHistory(lastActiveThreadId);
     }
   },
 

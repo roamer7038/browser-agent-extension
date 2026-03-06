@@ -1,5 +1,6 @@
 import { createAgent } from 'langchain';
 import type { BaseMessage } from '@langchain/core/messages';
+import type { LlmProviderType } from '@/lib/agent/llm/types';
 
 export type AgentExecutorType = ReturnType<typeof createAgent>;
 
@@ -78,7 +79,7 @@ export interface GraphAgentConfig {
   apiKey: string;
   baseUrl?: string;
   modelName: string;
-  providerType?: string;
+  providerType?: LlmProviderType;
   temperature?: number;
   topP?: number;
 }
