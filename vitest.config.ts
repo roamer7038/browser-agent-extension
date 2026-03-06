@@ -1,15 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import path from 'path';
+import { WxtVitest } from 'wxt/testing/vitest-plugin';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [WxtVitest()],
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./setup-tests.ts'],
-    alias: {
-      '@': path.resolve(__dirname, './')
-    }
+    setupFiles: ['./setup-tests.ts']
   }
 });
