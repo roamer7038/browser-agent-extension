@@ -1,6 +1,8 @@
-import { Puzzle } from 'lucide-react';
+import { useEffect } from 'react';
+import { Puzzle, Plug } from 'lucide-react';
 import type { LlmProviderConfig, AgentSettingsConfig, McpServerConfig } from '@/lib/types/agent';
-import { BROWSER_TOOL_META } from '@/lib/agent/tools/tool-meta';
+import { BROWSER_TOOL_META, INTEGRATION_TOOL_META } from '@/lib/agent/tools/tool-meta';
+import { useIntegrationStore } from '@/lib/store/integration-store';
 import { SystemPromptEditor } from './system-prompt-editor';
 import { ModelSelector } from './model-selector';
 import { ToolToggleList } from './tool-toggle-list';
@@ -37,6 +39,17 @@ export function AgentSettingsSection({
   setModelParams,
   setRecursionLimit
 }: AgentSettingsSectionProps) {
+  const { configs, loadConfigs } = useIntegrationStore();
+
+  useEffect(() => {
+    loadConfigs();
+  }, [loadConfigs]);
+
+  const enabledIntegrationIds = configs.filter((c) => c.enabled).map((c) => c.id);
+  const availableIntegrationTools = INTEGRATION_TOOL_META.filter(
+    (t) => !t.integrationId || enabledIntegrationIds.includes(t.integrationId)
+  );
+
   return (
     <div className='space-y-8'>
       <SystemPromptEditor systemPrompt={agentConfig.systemPrompt || ''} onSystemPromptChange={setSystemPrompt} />
@@ -59,6 +72,16 @@ export function AgentSettingsSection({
         tools={BROWSER_TOOL_META}
         onToggle={toggleTool}
       />
+
+      {availableIntegrationTools.length > 0 && (
+        <ToolToggleList
+          enabledTools={agentConfig.enabledTools}
+          icon={<Plug className='w-5 h-5' />}
+          title='連携サービスツール'
+          tools={availableIntegrationTools}
+          onToggle={toggleTool}
+        />
+      )}
 
       <McpToolIntegration
         disabledMcpTools={agentConfig.disabledMcpTools || []}

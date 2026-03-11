@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Settings, Database, Server } from 'lucide-react';
+import { ArrowLeft, Settings, Database, Server, Plug } from 'lucide-react';
 import { SidePanelHeader } from '@/components/layouts/side-panel-header';
 import { SidePanelLayout } from '@/components/layouts/side-panel-layout';
 import { useLlmProviders } from '@/hooks/use-llm-providers';
@@ -9,9 +9,10 @@ import { useMcpServers } from '@/hooks/use-mcp-servers';
 import { LlmProviderSection } from './llm-provider-section';
 import { AgentSettingsSection } from './agent-settings-section';
 import { McpServerSection } from './mcp-server-section';
+import { IntegrationSection } from './integration-section';
 import { cn } from '@/lib/utils';
 
-type SettingsPage = 'menu' | 'provider' | 'mcp' | 'agent';
+type SettingsPage = 'menu' | 'provider' | 'mcp' | 'agent' | 'integration';
 
 export function SettingsInterface({ onBack }: { onBack: () => void }) {
   const [activePage, setActivePage] = useState<SettingsPage>('menu');
@@ -62,6 +63,15 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
         <span className='font-medium'>エージェント設定</span>
         <span className='text-xs text-muted-foreground font-normal'>使用モデルとツールの選択</span>
       </Button>
+      <Button
+        variant='outline'
+        className='h-auto py-4 flex flex-col items-center justify-center gap-2 hover:bg-accent'
+        onClick={() => setActivePage('integration')}
+      >
+        <Plug className='w-6 h-6' />
+        <span className='font-medium'>連携サービス</span>
+        <span className='text-xs text-muted-foreground font-normal'>ウェブサービスや外部APIの連携設定</span>
+      </Button>
     </div>
   );
 
@@ -105,6 +115,12 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
             />
           </div>
         );
+      case 'integration':
+        return (
+          <div className='p-4'>
+            <IntegrationSection />
+          </div>
+        );
     }
   };
 
@@ -118,6 +134,8 @@ export function SettingsInterface({ onBack }: { onBack: () => void }) {
         return 'MCPサーバ';
       case 'agent':
         return 'エージェント設定';
+      case 'integration':
+        return '連携サービス';
     }
   };
 

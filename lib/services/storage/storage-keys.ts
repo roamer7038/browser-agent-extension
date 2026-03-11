@@ -11,6 +11,9 @@ export const STORAGE_KEYS = {
   // MCP Configuration
   MCP_SERVERS: 'mcpServers',
 
+  // Integrations Configuration
+  INTEGRATIONS: 'integrations',
+
   // Checkpointer
   CHECKPOINT_PREFIX: 'checkpoint:',
 

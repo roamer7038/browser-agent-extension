@@ -10,7 +10,9 @@ export interface ToolMeta {
   /** Short description shown in Settings */
   description: string;
   /** Category for grouping in Settings UI */
-  category: 'navigation' | 'content' | 'interaction' | 'screenshot' | 'download' | 'tab';
+  category: 'navigation' | 'content' | 'interaction' | 'screenshot' | 'download' | 'tab' | 'integration';
+  /** Associated integration ID, if category is 'integration' */
+  integrationId?: string;
 }
 
 export const BROWSER_TOOL_META: ToolMeta[] = [
@@ -137,5 +139,24 @@ export const BROWSER_TOOL_META: ToolMeta[] = [
   }
 ];
 
-/** Returns all tool names (= default: all enabled) */
+/** Returns all browser tool names */
 export const getAllToolNames = (): string[] => BROWSER_TOOL_META.map((t) => t.name);
+
+export const INTEGRATION_TOOL_META: ToolMeta[] = [
+  {
+    name: 'ollama_web_search',
+    label: 'Web検索',
+    description: 'インターネット上の情報を検索します。',
+    category: 'integration',
+    integrationId: 'ollama'
+  },
+  {
+    name: 'ollama_web_fetch',
+    label: 'Webページ取得',
+    description: '指定したURLからページ内容を取得します。',
+    category: 'integration',
+    integrationId: 'ollama'
+  }
+];
+
+export const getAllIntegrationToolNames = (): string[] => INTEGRATION_TOOL_META.map((t) => t.name);
